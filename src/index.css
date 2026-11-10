@@ -1,0 +1,73 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html {
+    @apply h-full;
+  }
+
+  body {
+    @apply min-h-full bg-ink-50 text-ink-800 antialiased;
+  }
+
+  #root {
+    @apply min-h-full;
+  }
+
+  ::selection {
+    @apply bg-brand-100 text-brand-900;
+  }
+}
+
+@layer components {
+  .campo-base {
+    @apply block w-full rounded-lg border border-ink-200 bg-white px-3 py-2 text-sm text-ink-900 shadow-sm outline-none transition placeholder:text-ink-400 focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 disabled:cursor-not-allowed disabled:bg-ink-50 disabled:text-ink-500;
+  }
+
+  .tabla-base {
+    @apply w-full border-collapse text-left text-sm;
+  }
+
+  .tabla-base thead th {
+    @apply border-b border-ink-200 bg-ink-50 px-4 py-3 text-xs font-semibold uppercase tracking-wide text-ink-500;
+  }
+
+  .tabla-base tbody td {
+    @apply border-b border-ink-100 px-4 py-3 align-middle text-ink-700;
+  }
+
+  .tabla-base tbody tr:last-child td {
+    @apply border-b-0;
+  }
+
+  .tabla-base tbody tr:hover {
+    @apply bg-brand-50/40;
+  }
+}
+
+@media print {
+  .no-imprimir {
+    display: none !important;
+  }
+
+  body {
+    background: white !important;
+  }
+
+  .layout-contenido {
+    padding-left: 0 !important;
+  }
+
+  main {
+    max-width: none !important;
+    padding: 0 !important;
+  }
+
+  .hoja-impresion {
+    box-shadow: none !important;
+    border: 0 !important;
+    max-width: none !important;
+    padding: 0 !important;
+  }
+}
