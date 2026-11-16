@@ -1,6 +1,8 @@
 import { useCallback, useMemo, useState } from "react";
 import { Boxes, PackageSearch } from "lucide-react";
 import { listarInventario } from "../../mock/api/inventario";
+import { formatearFecha } from "../../lib/format";
+import { medicamentoVencido } from "../../domain/fechas";
 import type { InventarioConProducto } from "../../mock/api/comun";
 import { useSucursalActiva } from "../../hooks/useSucursalActiva";
 import { useConsulta } from "../../hooks/useConsulta";
@@ -19,6 +21,7 @@ export function estadoStock(fila: InventarioConProducto): {
   etiqueta: string;
   tono: "verde" | "amarillo" | "rojo";
 } {
+  if (fila.producto.tipoProducto === "Medicamento" && medicamentoVencido(fila.producto)) return { etiqueta: "Vencido", tono: "rojo" };
   if (fila.stockActual === 0) return { etiqueta: "Sin stock", tono: "rojo" };
   if (fila.stockActual < fila.stockMinimo) {
     return { etiqueta: "Bajo mínimo", tono: "amarillo" };
@@ -105,6 +108,8 @@ export function PaginaConsultaStock() {
                 <tr>
                   <th>Producto</th>
                   <th>Marca</th>
+                  <th>Laboratorio</th>
+                  <th>Vencimiento</th>
                   <th className="text-right">Stock actual</th>
                   <th className="text-right">Mínimo</th>
                   <th className="text-right">Máximo</th>
@@ -125,6 +130,8 @@ export function PaginaConsultaStock() {
                         </span>
                       </td>
                       <td>{fila.producto.marca}</td>
+                      <td>{fila.producto.tipoProducto === "Medicamento" ? fila.producto.laboratorio : "—"}</td>
+                      <td>{fila.producto.tipoProducto === "Medicamento" ? formatearFecha(fila.producto.fechaVencimiento) : "—"}</td>
                       <td className="text-right font-semibold tabular-nums">
                         {fila.stockActual}
                       </td>
@@ -211,9 +218,19 @@ export function PaginaDisponibilidad() {
                         {fila.producto.marca} · {fila.producto.tipoProducto}
                       </p>
                     </div>
-                    <Badge tono={disponible ? "verde" : "rojo"}>
-                      {disponible ? "Disponible" : "Sin stock"}
-                    </Badge>
+                    <div className="flex shrink-0 flex-col items-end gap-1">
+                      <Badge tono={disponible ? "verde" : "rojo"}>
+                        {disponible ? "Disponible" : "Sin stock"}
+                      </Badge>
+                      {fila.producto.tipoProducto === "Medicamento" &&
+                        fila.producto.requiereReceta && (
+                          <Badge tono="azul">Requiere receta</Badge>
+                        )}
+                      {fila.producto.tipoProducto === "Medicamento" &&
+                        !fila.producto.requiereReceta && (
+                          <Badge tono="gris">Sin receta</Badge>
+                        )}
+                    </div>
                   </div>
                   <dl className="mt-3 grid grid-cols-3 gap-2 border-t border-ink-100 pt-3 text-xs">
                     <div>

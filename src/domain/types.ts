@@ -1,5 +1,5 @@
 export type Rol =
-  | "Encargado de Venta"
+  | "Encargado de Ventas"
   | "Encargado de Caja"
   | "Encargado de Depósito"
   | "Encargado de Compras"
@@ -276,4 +276,6 @@ export interface CompraCompleta {
   pedido: Pedido | null;
   detalles: Array<DetalleCompra & { producto: ProductoConTipo }>;
   stockAplicado: boolean;
+  /** El pedido de origen ya ajustó el stock al registrar la mercadería recibida. */
+  stockAjustadoPorPedido: boolean;
 }

@@ -2,6 +2,8 @@ import { useCallback, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { PackageSearch, Plus, ShoppingBag } from "lucide-react";
 import { obtenerProductosConStock } from "../../mock/api/ventas";
+import { categoriaDe } from "../../mock/api/comun";
+import { admiteVentaLibre } from "../../domain/rules";
 import { formatearMoneda } from "../../lib/format";
 import { useSucursalActiva } from "../../hooks/useSucursalActiva";
 import { useConsulta } from "../../hooks/useConsulta";
@@ -24,8 +26,8 @@ export function PaginaCatalogoVentaLibre() {
   const [categoria, setCategoria] = useState("todas");
   const cargar = useCallback(
     async () =>
-      (await obtenerProductosConStock(sucursalId)).filter(
-        (producto) => producto.tipoProducto === "Venta libre",
+      (await obtenerProductosConStock(sucursalId)).filter((producto) =>
+        admiteVentaLibre(producto),
       ),
     [sucursalId],
   );
@@ -33,7 +35,7 @@ export function PaginaCatalogoVentaLibre() {
 
   const categorias = useMemo(
     () =>
-      [...new Set((datos ?? []).map((producto) => producto.categoria))].sort(
+      [...new Set((datos ?? []).map((producto) => categoriaDe(producto)))].sort(
         (a, b) => a.localeCompare(b, "es"),
       ),
     [datos],
@@ -45,11 +47,11 @@ export function PaginaCatalogoVentaLibre() {
     return datos.filter((producto) => {
       const coincideTexto =
         !texto ||
-        `${producto.nombre} ${producto.marca} ${producto.categoria}`
+        `${producto.nombre} ${producto.marca} ${categoriaDe(producto)}`
           .toLowerCase()
           .includes(texto);
       const coincideCategoria =
-        categoria === "todas" || producto.categoria === categoria;
+        categoria === "todas" || categoriaDe(producto) === categoria;
       return coincideTexto && coincideCategoria;
     });
   }, [datos, busqueda, categoria]);
@@ -58,7 +60,7 @@ export function PaginaCatalogoVentaLibre() {
     <div>
       <EncabezadoPagina
         titulo="Catálogo de venta libre"
-        descripcion="Consultá productos por nombre, marca o categoría y su disponibilidad en la sucursal activa."
+        descripcion="Consultá los productos de venta libre y los medicamentos que no requieren receta, con su disponibilidad en la sucursal activa."
         acciones={
           <Boton onClick={() => navigate("/ventas-libres/nueva")}>
             <Plus className="h-4 w-4" aria-hidden />
@@ -132,7 +134,14 @@ export function PaginaCatalogoVentaLibre() {
                       </span>
                     </td>
                     <td>{producto.marca}</td>
-                    <td>{producto.categoria}</td>
+                    <td>
+                      <span className="block text-sm text-ink-800">
+                        {categoriaDe(producto)}
+                      </span>
+                      {producto.tipoProducto === "Medicamento" && (
+                        <Badge tono="azul">Sin receta</Badge>
+                      )}
+                    </td>
                     <td className="font-mono text-xs">{producto.codigoBarras}</td>
                     <td className="text-right font-medium tabular-nums">
                       {formatearMoneda(producto.precio)}

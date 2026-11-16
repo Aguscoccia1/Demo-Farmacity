@@ -17,6 +17,7 @@ import type {
   PedidoCompleto,
   ProductoConTipo,
   RegistroAuditoria,
+  Rol,
   Sucursal,
   TipoOperacion,
   VentaCompleta,
@@ -30,6 +31,14 @@ export class ApiError extends Error {
     super(mensaje);
     this.name = "ApiError";
     this.codigo = codigo;
+  }
+}
+
+/** Permisos de las operaciones de negocio de la API local. */
+export function exigirRol(...roles: Rol[]): void {
+  const { rol } = obtenerActor();
+  if (rol === "Sistema" || !roles.includes(rol)) {
+    throw new ApiError("No tenés permiso para realizar esta acción", "SIN_PERMISO");
   }
 }
 
@@ -65,6 +74,20 @@ export function listarProductosConTipo(db: BaseDatos): ProductoConTipo[] {
       (producto) => ({ ...producto, tipoProducto: "Venta libre" }) as const,
     ),
   ];
+}
+
+/**
+ * Categoría para mostrar en catálogos: los productos de venta libre tienen
+ * categoría propia y los medicamentos se agrupan como "Medicamento".
+ */
+export function categoriaDe(
+  producto:
+    | { tipoProducto: "Venta libre"; categoria: string }
+    | { tipoProducto: "Medicamento" },
+): string {
+  return producto.tipoProducto === "Venta libre"
+    ? producto.categoria
+    : "Medicamento";
 }
 
 export function buscarInventario(
@@ -224,7 +247,35 @@ export function tieneStockAplicado(db: BaseDatos, compraId: string): boolean {
     (registro) =>
       registro.referenciaId === compraId &&
       registro.tipoOperacion === "Actualización de stock" &&
-      registro.descripcion.startsWith("Stock de compra aplicado"),
+      (registro.descripcion.startsWith("Stock de compra aplicado") ||
+        registro.descripcion.startsWith("Stock ya ajustado desde el pedido")),
+  );
+}
+
+/**
+ * Un pedido ajustó el stock de la sucursal por mercadería recibida cuando hay
+ * un registro de ese ajuste y no fue revertido por una cancelación posterior.
+ */
+export function tieneStockAjustadoPorPedido(
+  db: BaseDatos,
+  pedidoId: string,
+): boolean {
+  const ajustado = db.auditoria.some(
+    (registro) =>
+      registro.referenciaId === pedidoId &&
+      registro.tipoOperacion === "Actualización de stock" &&
+      registro.descripcion.startsWith(
+        "Stock ajustado por mercadería recibida del pedido",
+      ),
+  );
+  if (!ajustado) return false;
+  return !db.auditoria.some(
+    (registro) =>
+      registro.referenciaId === pedidoId &&
+      registro.tipoOperacion === "Actualización de stock" &&
+      registro.descripcion.startsWith(
+        "Stock revertido por cancelación del pedido",
+      ),
   );
 }
 
@@ -242,6 +293,9 @@ export function enriquecerCompra(
     if (!producto) throw new ApiError("Un producto de la compra no existe.");
     detalles.push({ ...detalle, producto });
   }
+  const stockAjustadoPorPedido = compra.pedidoId
+    ? tieneStockAjustadoPorPedido(db, compra.pedidoId)
+    : false;
   return {
     compra,
     sucursal: buscarSucursal(db, compra.sucursalId),
@@ -249,7 +303,8 @@ export function enriquecerCompra(
     estado: buscarEstadoCompra(db, compra.estadoId),
     pedido: db.pedidos.find((item) => item.id === compra.pedidoId) ?? null,
     detalles,
-    stockAplicado: tieneStockAplicado(db, compra.id),
+    stockAplicado: tieneStockAplicado(db, compra.id) || stockAjustadoPorPedido,
+    stockAjustadoPorPedido,
   };
 }
 

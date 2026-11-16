@@ -1,3 +1,4 @@
+import { ListadoImprimible } from "../../components/ListadoImprimible";
 import { useCallback, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { Eye, FileText, Pencil, Plus, Truck } from "lucide-react";
@@ -63,6 +64,12 @@ export function PaginaPedidos() {
           </Link>
         }
       />
+
+      <div className="mb-4 flex justify-end">
+        <ListadoImprimible titulo="Pedidos a droguería" deshabilitado={cargando || Boolean(error)}
+          columnas={["Fecha", "Sucursal", "Droguería", "Productos", "Estado", "Orden"]}
+          filas={filtrados.map((p) => [formatearFechaHora(p.pedido.fecha), p.sucursal.nombre, p.drogueria.nombre, p.detalles.map((d) => `${d.producto.nombre}: ${d.cantidad}`).join(", "), p.estado.nombre, p.ordenGenerada ? "Generada" : "Pendiente"])} />
+      </div>
 
       <Tarjeta>
         <div className="flex flex-col gap-3 border-b border-ink-200 p-4 md:flex-row md:items-center md:justify-between">

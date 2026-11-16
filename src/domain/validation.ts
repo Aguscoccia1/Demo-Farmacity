@@ -1,11 +1,12 @@
 import { z } from "zod";
+import { esFechaCalendario, fechaDeHoy } from "./fechas";
 
 const textoRequerido = (mensaje: string) =>
   z.string().trim().min(1, mensaje);
 
 const fechaIso = z
   .string()
-  .regex(/^\d{4}-\d{2}-\d{2}$/, "Ingresá una fecha válida.");
+  .refine(esFechaCalendario, "Ingresá una fecha de calendario válida.");
 
 const hora = z
   .string()
@@ -27,7 +28,7 @@ export type ClienteForm = z.infer<typeof clienteSchema>;
 
 export const turnoSchema = z.object({
   clienteId: textoRequerido("Seleccioná un cliente."),
-  fecha: fechaIso,
+  fecha: fechaIso.refine((fecha) => fecha >= fechaDeHoy(), "El turno no puede tener una fecha anterior a hoy."),
   hora,
 });
 
@@ -50,6 +51,13 @@ export const recetaSchema = z.object({
   fechaVencimiento: fechaIso,
   medico: textoRequerido("Ingresá el nombre del médico."),
   matriculaMedico: textoRequerido("Ingresá la matrícula del médico."),
+}).superRefine((receta, ctx) => {
+  if (receta.fecha > fechaDeHoy()) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["fecha"], message: "La fecha de emisión no puede ser posterior a hoy." });
+  }
+  if (receta.fecha > receta.fechaVencimiento) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["fecha"], message: "La fecha de emisión no puede ser posterior al vencimiento." });
+  }
 });
 
 export type RecetaForm = z.infer<typeof recetaSchema>;

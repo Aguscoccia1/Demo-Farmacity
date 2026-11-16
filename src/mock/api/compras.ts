@@ -1,4 +1,5 @@
-import type { DetalleCompra } from "../../domain/types";
+import { exigirRol } from "./comun";
+import type { CompraCompleta, DetalleCompra } from "../../domain/types";
 import {
   puedeModificarCompra,
   TRANSICIONES_COMPRA,
@@ -15,6 +16,7 @@ import {
   generarId,
   obtenerDrogueriaCentral,
   ordenarPorFechaDesc,
+  tieneStockAjustadoPorPedido,
   tieneStockAplicado,
   validarCantidad,
 } from "./comun";
@@ -64,6 +66,8 @@ function validarPedidoOrigen(
   db: Parameters<typeof buscarProducto>[0],
   pedidoId: string | null,
   sucursalId: string,
+  items: DetalleCompraPreparado[],
+  compraId?: string,
 ): void {
   if (!pedidoId) return;
   const pedido = db.pedidos.find((item) => item.id === pedidoId);
@@ -76,6 +80,20 @@ function validarPedidoOrigen(
     throw new ApiError(
       "Solo se puede crear una compra a partir de un pedido Enviado.",
     );
+  }
+  const tieneCompra = db.compras.some((compra) =>
+    compra.pedidoId === pedidoId && compra.id !== compraId &&
+    db.estadosCompra.find((e) => e.id === compra.estadoId)?.nombre !== "Anulada",
+  );
+  if (tieneCompra) {
+    throw new ApiError("El pedido ya tiene una compra asociada vigente.", "COMPRA_DUPLICADA");
+  }
+  const cantidades = new Map<string, number>();
+  db.detallesPedido.filter((d) => d.pedidoId === pedidoId).forEach((d) => {
+    cantidades.set(d.productoId, (cantidades.get(d.productoId) ?? 0) + d.cantidad);
+  });
+  if (items.length !== cantidades.size || items.some((item) => cantidades.get(item.productoId) !== item.cantidad)) {
+    throw new ApiError("Los productos y cantidades de la compra deben coincidir con los del pedido.", "DETALLES_NO_COINCIDEN");
   }
 }
 
@@ -121,10 +139,11 @@ export async function crearCompra(datos: {
   items: ItemCompraInput[];
 }) {
   return transaccion((db) => {
+    exigirRol("Encargado de Compras");
     buscarSucursal(db, datos.sucursalId);
     const central = obtenerDrogueriaCentral(db);
-    validarPedidoOrigen(db, datos.pedidoId, datos.sucursalId);
     const items = normalizarDetalles(db, datos.items);
+    validarPedidoOrigen(db, datos.pedidoId, datos.sucursalId, items);
     const estado = db.estadosCompra.find((item) => item.nombre === "Registrada");
     if (!estado) throw new ApiError("No está configurado el estado Registrada.");
     const total = items.reduce((acc, item) => acc + item.subtotal, 0);
@@ -167,6 +186,7 @@ export async function actualizarCompra(
   datos: { items: ItemCompraInput[] },
 ) {
   return transaccion((db) => {
+    exigirRol("Encargado de Compras");
     const compra = db.compras.find((item) => item.id === compraId);
     if (!compra) throw new ApiError("La compra no existe.");
     const estado = db.estadosCompra.find((item) => item.id === compra.estadoId);
@@ -174,6 +194,7 @@ export async function actualizarCompra(
       throw new ApiError("Solo se puede modificar una compra Registrada.");
     }
     const items = normalizarDetalles(db, datos.items);
+    validarPedidoOrigen(db, compra.pedidoId, compra.sucursalId, items, compra.id);
     const total = items.reduce((acc, item) => acc + item.subtotal, 0);
     db.detallesCompra = db.detallesCompra.filter(
       (detalle) => detalle.compraId !== compra.id,
@@ -204,6 +225,7 @@ export async function actualizarCompra(
 
 export async function registrarRecepcionCompra(compraId: string) {
   return transaccion((db) => {
+    exigirRol("Encargado de Compras");
     const compra = db.compras.find((item) => item.id === compraId);
     if (!compra) throw new ApiError("La compra no existe.");
     const estado = db.estadosCompra.find((item) => item.id === compra.estadoId);
@@ -222,7 +244,7 @@ export async function registrarRecepcionCompra(compraId: string) {
     compra.estadoId = estadoRecibida.id;
     auditar(db, {
       tipoOperacion: "Recepción",
-      descripcion: "Recepción de mercadería registrada. El stock se actualiza desde Compras recibidas.",
+      descripcion: "Recepción de mercadería registrada. El stock se actualiza desde Compras de Depósito.",
       sucursalId: compra.sucursalId,
       referenciaId: compra.id,
     });
@@ -232,6 +254,7 @@ export async function registrarRecepcionCompra(compraId: string) {
 
 export async function anularCompra(compraId: string) {
   return transaccion((db) => {
+    exigirRol("Encargado de Compras");
     const compra = db.compras.find((item) => item.id === compraId);
     if (!compra) throw new ApiError("La compra no existe.");
     const estado = db.estadosCompra.find((item) => item.id === compra.estadoId);
@@ -258,8 +281,17 @@ export async function anularCompra(compraId: string) {
   });
 }
 
-export async function aplicarStockCompra(compraId: string) {
+/**
+ * Aplica el stock de una compra Recibida. Si el pedido de origen ya ajustó el
+ * stock al registrar la mercadería recibida, la operación es un no-op que
+ * marca la compra como aplicada para evitar el doble conteo.
+ */
+export async function aplicarStockCompra(compraId: string): Promise<{
+  compra: CompraCompleta;
+  mensaje: string;
+}> {
   return transaccion((db) => {
+    exigirRol("Encargado de Depósito");
     const compra = db.compras.find((item) => item.id === compraId);
     if (!compra) throw new ApiError("La compra no existe.");
     const estado = db.estadosCompra.find((item) => item.id === compra.estadoId);
@@ -273,6 +305,19 @@ export async function aplicarStockCompra(compraId: string) {
         "El stock de esta compra ya fue actualizado.",
         "STOCK_YA_APLICADO",
       );
+    }
+    if (compra.pedidoId && tieneStockAjustadoPorPedido(db, compra.pedidoId)) {
+      auditar(db, {
+        tipoOperacion: "Actualización de stock",
+        descripcion: "Stock ya ajustado desde el pedido.",
+        sucursalId: compra.sucursalId,
+        referenciaId: compra.id,
+      });
+      return {
+        compra: enriquecerCompra(db, compra.id),
+        mensaje:
+          "Stock ya ajustado desde el pedido. No se aplicaron cambios para evitar el doble conteo.",
+      };
     }
     const detalles = db.detallesCompra.filter(
       (detalle) => detalle.compraId === compra.id,
@@ -309,6 +354,9 @@ export async function aplicarStockCompra(compraId: string) {
       sucursalId: compra.sucursalId,
       referenciaId: compra.id,
     });
-    return enriquecerCompra(db, compra.id);
+    return {
+      compra: enriquecerCompra(db, compra.id),
+      mensaje: "Stock de la compra aplicado.",
+    };
   });
 }

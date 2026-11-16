@@ -1,3 +1,4 @@
+import { exigirRol } from "./comun";
 import type { DrogueriaCentral } from "../../domain/types";
 import {
   drogueriaSchema,
@@ -22,6 +23,7 @@ export async function obtenerDrogueria(id: string): Promise<DrogueriaCentral> {
 export async function crearDrogueria(
   datos: DrogueriaForm,
 ): Promise<DrogueriaCentral> {
+  exigirRol("Encargado de Depósito");
   let limpios: DrogueriaForm;
   try {
     limpios = validarConEsquema(drogueriaSchema, datos);
@@ -29,6 +31,7 @@ export async function crearDrogueria(
     throw new ApiError(error instanceof Error ? error.message : "Datos inválidos.");
   }
   return transaccion((db) => {
+    exigirRol("Encargado de Depósito");
     if (
       db.droguerias.some(
         (drogueria) =>
@@ -55,6 +58,7 @@ export async function actualizarDrogueria(
   id: string,
   datos: DrogueriaForm,
 ): Promise<DrogueriaCentral> {
+  exigirRol("Encargado de Depósito");
   let limpios: DrogueriaForm;
   try {
     limpios = validarConEsquema(drogueriaSchema, datos);
@@ -62,6 +66,7 @@ export async function actualizarDrogueria(
     throw new ApiError(error instanceof Error ? error.message : "Datos inválidos.");
   }
   return transaccion((db) => {
+    exigirRol("Encargado de Depósito");
     const drogueria = buscarDrogueria(db, id);
     if (
       db.droguerias.some(

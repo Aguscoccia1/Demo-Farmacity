@@ -1,3 +1,4 @@
+import { exigirRol } from "./comun";
 import { format } from "date-fns";
 import type {
   RegistroAuditoria,
@@ -17,6 +18,7 @@ export interface FiltrosAuditoria {
 export async function listarAuditoria(
   filtros: FiltrosAuditoria = {},
 ): Promise<RegistroAuditoria[]> {
+  exigirRol("Administrador");
   const db = await leerBaseDatos();
   return ordenarPorFechaDesc(
     db.auditoria.filter((registro) => {
@@ -58,6 +60,7 @@ export async function registrarEventoAuditoria(datos: {
 }
 
 export async function listarUsuariosAuditoria(): Promise<string[]> {
+  exigirRol("Administrador");
   const db = await leerBaseDatos();
   const usuarios = new Set(db.auditoria.map((registro) => registro.usuario));
   return [...usuarios].sort((a, b) => a.localeCompare(b, "es"));

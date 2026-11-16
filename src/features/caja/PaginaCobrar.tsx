@@ -105,6 +105,7 @@ export function PaginaCobrar() {
       setPagos([]);
       mostrarToast("Cobro registrado.");
       recargar();
+      navigate(`/caja/comprobante/${nuevoResultado.cobro.venta.venta.id}`);
     } catch (motivo) {
       setErrorPago(
         motivo instanceof Error

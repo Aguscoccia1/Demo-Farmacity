@@ -1,3 +1,4 @@
+import { exigirRol } from "./comun";
 import type { ObraSocial } from "../../domain/types";
 import {
   obraSocialSchema,
@@ -24,6 +25,7 @@ export async function obtenerObraSocial(id: string): Promise<ObraSocial> {
 export async function crearObraSocial(
   datos: ObraSocialForm,
 ): Promise<ObraSocial> {
+  exigirRol("Encargado de Ventas");
   let limpios: ObraSocialForm;
   try {
     limpios = validarConEsquema(obraSocialSchema, datos);
@@ -31,6 +33,7 @@ export async function crearObraSocial(
     throw new ApiError(error instanceof Error ? error.message : "Datos inválidos.");
   }
   return transaccion((db) => {
+    exigirRol("Encargado de Ventas");
     if (
       db.obrasSociales.some(
         (obra) => obra.sigla.toLowerCase() === limpios.sigla.toLowerCase(),

@@ -49,7 +49,7 @@ interface GrupoNavegacion {
 }
 
 const NAVEGACION: Record<Rol, GrupoNavegacion[]> = {
-  "Encargado de Venta": [
+  "Encargado de Ventas": [
     {
       titulo: "Mostrador",
       items: [
@@ -89,7 +89,7 @@ const NAVEGACION: Record<Rol, GrupoNavegacion[]> = {
         { etiqueta: "Stock bajo", ruta: "/alertas-stock", icono: AlertTriangle },
         { etiqueta: "Movimientos de stock", ruta: "/movimientos", icono: ArrowLeftRight },
         { etiqueta: "Pedidos a droguería", ruta: "/pedidos", icono: Truck },
-        { etiqueta: "Compras recibidas", ruta: "/compras-recibidas", icono: ClipboardCheck },
+        { etiqueta: "Compras", ruta: "/compras-recibidas", icono: ClipboardCheck },
         { etiqueta: "Droguerías", ruta: "/droguerias", icono: Building2 },
       ],
     },

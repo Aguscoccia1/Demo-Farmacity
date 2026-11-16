@@ -12,7 +12,8 @@ import {
 } from "lucide-react";
 import type { Cliente, VentaCompleta } from "../../domain/types";
 import type { ProductoConStock } from "../../mock/api/comun";
-import { redondearMonto } from "../../domain/rules";
+import { categoriaDe } from "../../mock/api/comun";
+import { admiteVentaLibre, redondearMonto } from "../../domain/rules";
 import {
   actualizarVentaLibre,
   anularVenta,
@@ -38,6 +39,8 @@ import {
   Tarjeta,
 } from "../../components/ui";
 import { mostrarToast } from "../../stores/toasts";
+import { medicamentoVencido } from "../../domain/fechas";
+import { formatearFecha } from "../../lib/format";
 
 interface ItemSeleccionado {
   productoId: string;
@@ -93,8 +96,8 @@ export function PaginaVentaLibre() {
 
   const productosVentaLibre = useMemo(
     () =>
-      (datos?.catalogo ?? []).filter(
-        (producto) => producto.tipoProducto === "Venta libre",
+      (datos?.catalogo ?? []).filter((producto) =>
+        admiteVentaLibre(producto),
       ),
     [datos],
   );
@@ -107,7 +110,7 @@ export function PaginaVentaLibre() {
     const texto = busqueda.trim().toLowerCase();
     if (!texto) return productosVentaLibre;
     return productosVentaLibre.filter((producto) =>
-      `${producto.nombre} ${producto.marca} ${producto.categoria}`
+      `${producto.nombre} ${producto.marca} ${categoriaDe(producto)}`
         .toLowerCase()
         .includes(texto),
     );
@@ -143,6 +146,7 @@ export function PaginaVentaLibre() {
   const total = redondearMonto(subtotal - descuentoAplicado);
 
   const agregarProducto = (producto: ProductoConStock) => {
+    if (producto.tipoProducto === "Medicamento" && medicamentoVencido(producto)) return;
     setErrores({});
     setItems((anteriores) => {
       const existente = anteriores.find(
@@ -168,6 +172,7 @@ export function PaginaVentaLibre() {
         const producto = productosVentaLibre.find(
           (candidato) => candidato.id === productoId,
         );
+        if (delta > 0 && producto?.tipoProducto === "Medicamento" && medicamentoVencido(producto)) return [item];
         const limite = producto?.stockActual ?? 0;
         const nueva = Math.min(limite, item.cantidad + delta);
         if (nueva <= 0) return [];
@@ -281,7 +286,7 @@ export function PaginaVentaLibre() {
       </button>
       <EncabezadoPagina
         titulo={esEdicion ? "Modificar venta libre" : "Nueva venta libre"}
-        descripcion="Seleccioná el cliente y los productos disponibles. La venta queda pendiente de cobro."
+        descripcion="Seleccioná el cliente y los productos disponibles: de venta libre y medicamentos que no requieren receta. La venta queda pendiente de cobro."
         acciones={
           esEdicion ? (
             <Boton variante="peligro" onClick={() => setAnularAbierto(true)}>
@@ -346,9 +351,10 @@ export function PaginaVentaLibre() {
             <div>
               <h2 className="flex items-center gap-2 font-semibold text-ink-950">
                 <ShoppingBag className="h-4 w-4 text-brand-700" aria-hidden />
-                Productos de venta libre
+                Productos disponibles
               </h2>
               <p className="mt-0.5 text-xs text-ink-500">
+                Productos de venta libre y medicamentos que no requieren receta.
                 No se pueden agregar productos sin disponibilidad.
               </p>
             </div>
@@ -376,7 +382,8 @@ export function PaginaVentaLibre() {
                 const enVenta = items.find(
                   (item) => item.productoId === producto.id,
                 );
-                const disponible = producto.stockActual > (enVenta?.cantidad ?? 0);
+                const vencido = producto.tipoProducto === "Medicamento" && medicamentoVencido(producto);
+                const disponible = !vencido && producto.stockActual > (enVenta?.cantidad ?? 0);
                 return (
                   <li
                     key={producto.id}
@@ -385,7 +392,12 @@ export function PaginaVentaLibre() {
                     <div className="min-w-0">
                       <div className="flex flex-wrap items-center gap-2">
                         <p className="font-medium text-ink-900">{producto.nombre}</p>
-                        <Badge tono="gris">{producto.categoria}</Badge>
+                        {vencido && <Badge tono="rojo">Vencido</Badge>}
+                        {producto.tipoProducto === "Medicamento" ? (
+                          <Badge tono="azul">Medicamento sin receta</Badge>
+                        ) : (
+                          <Badge tono="gris">{categoriaDe(producto)}</Badge>
+                        )}
                       </div>
                       <p className="mt-0.5 text-sm text-ink-500">
                         {producto.descripcion}
@@ -393,6 +405,9 @@ export function PaginaVentaLibre() {
                       <p className="mt-0.5 text-xs text-ink-500">
                         {producto.marca} · {producto.codigoBarras}
                       </p>
+                      {producto.tipoProducto === "Medicamento" && (
+                        <p className="mt-0.5 text-xs text-ink-500">Laboratorio: {producto.laboratorio} · Vencimiento: {formatearFecha(producto.fechaVencimiento)}</p>
+                      )}
                       <p className="mt-1 text-sm font-medium text-ink-800">
                         {formatearMoneda(producto.precio)}
                       </p>
@@ -475,7 +490,7 @@ export function PaginaVentaLibre() {
                       <button
                         type="button"
                         onClick={() => cambiarCantidad(item.productoId, 1)}
-                        disabled={item.cantidad >= item.producto.stockActual}
+                        disabled={item.cantidad >= item.producto.stockActual || (item.producto.tipoProducto === "Medicamento" && medicamentoVencido(item.producto))}
                         className="rounded border border-ink-200 p-1 text-ink-600 hover:bg-ink-50 disabled:cursor-not-allowed disabled:opacity-40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500"
                         aria-label={`Agregar una unidad de ${item.producto.nombre}`}
                       >

@@ -16,7 +16,7 @@ auditoría con datos simulados.
 - Tailwind CSS
 - lucide-react
 - date-fns
-- Vitest + React Testing Library
+- Vitest + React Testing Library (jsdom)
 
 ## Puesta en marcha
 
@@ -35,7 +35,8 @@ Scripts disponibles:
 npm run dev       # servidor de desarrollo
 npm run build     # chequeo de TypeScript + build de producción
 npm run preview   # previsualización del build
-npm test          # pruebas automatizadas
+npm test          # suite de pruebas completa
+npm run test:watch # pruebas durante el desarrollo
 npm run lint      # ESLint
 ```
 
@@ -46,7 +47,7 @@ credenciales automáticamente.
 
 | Rol | Usuario | Contraseña |
 | --- | --- | --- |
-| Encargado de Venta | `venta` | `venta123` |
+| Encargado de Ventas | `venta` | `venta123` |
 | Encargado de Caja | `caja` | `caja123` |
 | Encargado de Depósito | `deposito` | `deposito123` |
 | Encargado de Compras | `compras` | `compras123` |
@@ -58,29 +59,41 @@ sesión se cierra automáticamente tras 5 minutos de inactividad, con un aviso
 
 Cada rol tiene un menú y un conjunto de rutas permitidas. Si se intenta abrir
 una ruta ajena al rol, se muestra **Acceso restringido**.
+El rol de mostrador se denomina **Encargado de Ventas** en usuarios, permisos,
+seed y auditoría. Las sesiones de la versión anterior deben volver a ingresar
+una vez tras este cambio; las credenciales de prueba siguen siendo las mismas.
+Las operaciones de negocio de la API simulada también comprueban el actor de
+la sesión y rechazan cambios de otro rol con “No tenés permiso para realizar
+esta acción”. Administrador consulta auditoría y no realiza operaciones
+comerciales. Las lecturas compartidas entre roles siguen disponibles.
 
 ## Recorrido sugerido
 
 1. Ingresar como `venta` y registrar una venta con receta o una venta libre.
-2. Cambiar a `caja`, cobrar la venta y emitir el comprobante de pago.
-3. Ingresar como `deposito` para consultar stock, pedidos y compras recibidas.
+2. Cambiar a `caja` y cobrar la venta: se abre automáticamente su comprobante.
+3. Ingresar como `deposito` para consultar stock, pedidos y **Compras**.
 4. Ingresar como `compras` para registrar una compra y recepcionarla.
 5. Volver a `deposito` para aplicar el stock de la compra recibida.
 6. Ingresar como `admin` para consultar el registro de auditoría.
 
 ## Módulos
 
-### Mostrador — Encargado de Venta
+### Mostrador — Encargado de Ventas
 
 - Alta, modificación, ficha y listado imprimible de clientes.
-- Registro de turnos.
+- Registro de turnos desde el día de hoy, con fechas de calendario válidas.
 - Consulta y alta de obras sociales.
 - Consulta de stock y disponibilidad por sucursal.
 - Listado, alta, modificación y anulación de ventas con receta.
 - Listado, alta, modificación y anulación de ventas libres.
-- Catálogo de productos de venta libre.
-- Validación de receta vigente, médico y matrícula.
-- Búsqueda de genéricos equivalentes por principio activo y stock.
+- Catálogo de productos de venta libre y medicamentos sin receta.
+- Las ventas libres admiten productos de venta libre y medicamentos que no
+  requieren receta; los que requieren receta se rechazan con un mensaje claro.
+- Validación de receta vigente, médico, matrícula y fechas reales; emisión
+  hasta hoy y nunca posterior al vencimiento.
+- Medicamentos vencidos deshabilitados con la leyenda **Vencido**. Laboratorio
+  y vencimiento visibles en selección de medicamentos y consulta de stock.
+- Búsqueda de genéricos equivalentes por principio activo, stock y vigencia.
 - Cálculo de subtotal, descuento, total, cobertura e importe a cobrar.
 
 ### Caja — Encargado de Caja
@@ -89,7 +102,7 @@ una ruta ajena al rol, se muestra **Acceso restringido**.
 - Cobro con uno o varios medios de pago.
 - Simulación de rechazo de pagos electrónicos.
 - Regla especial para coberturas del 100%.
-- Comprobante de pago imprimible.
+- Comprobante de pago imprimible que se abre automáticamente al confirmar.
 - Consulta de cobros y corrección del reparto de medios.
 - Listado de cobros del día.
 
@@ -99,10 +112,13 @@ una ruta ajena al rol, se muestra **Acceso restringido**.
 - Alertas de stock por debajo del mínimo.
 - Salidas e ingresos manuales de mercadería.
 - Pedidos a la Droguería Central.
-- Generación e impresión de la orden de pedido.
+- Generación de la orden incluida en el alta y apertura automática de su vista imprimible.
 - Envío y cancelación de pedidos.
 - Ajuste de stock al marcar mercadería recibida.
-- Consulta de compras recibidas y aplicación de stock.
+- Reversión del ajuste al cancelar un pedido enviado con mercadería recibida.
+- Listado de todas las compras de la sucursal con filtro por estado.
+- Aplicación de stock de las compras recibidas, sin doble conteo cuando el
+  pedido de origen ya lo ajustó.
 - Consulta, alta y modificación de droguerías.
 
 ### Compras — Encargado de Compras
@@ -112,6 +128,11 @@ una ruta ajena al rol, se muestra **Acceso restringido**.
 - Recepción de compras.
 - Anulación de compras Registradas.
 - Consulta y listado de compras.
+
+Los listados de ventas con receta, ventas libres, cobros del día, pedidos y
+compras tienen botón **Imprimir**. Abre una vista previa con los registros
+filtrados, sucursal y fecha de emisión; desde allí se imprime sin los controles
+de la aplicación. Compras se puede imprimir tanto desde Compras como Depósito.
 
 ### Administración — Administrador
 
@@ -128,16 +149,31 @@ una ruta ajena al rol, se muestra **Acceso restringido**.
   probabilidad configurable. El efectivo nunca se rechaza.
 - Un pago rechazado no modifica la venta: queda Registrada para reintentar.
 - Las ventas solo se pueden modificar o anular en estado Registrada.
+- Una venta con receta solo admite medicamentos; una venta libre admite
+  productos de venta libre y medicamentos que no requieren receta.
 - El stock se controla al registrar o modificar una venta y se descuenta al
   confirmar el cobro.
 - Las ventas cobradas no se pueden modificar ni anular.
 - Los pedidos solo se modifican o eliminan en estado Registrado.
-- Para enviar un pedido primero debe generarse su orden de pedido.
+- Los pedidos nuevos generan su orden en la misma transacción del alta. Para
+  pedidos anteriores que no tengan orden se mantiene su generación explícita.
 - El ajuste de stock por mercadería recibida ocurre al pasar un pedido de
   Registrado a Enviado con la opción correspondiente marcada.
+- No se cancela un pedido con una compra vinculada no Anulada: se informa
+  “El pedido tiene una compra asociada”.
+- Cancelar un pedido Enviado con stock ajustado revierte el ajuste solo si
+  todos los productos tienen existencias suficientes. Si no, se rechaza toda
+  la operación y se conserva el stock, estado y auditoría anteriores.
 - Las compras se registran siempre contra la Droguería Central.
+- Solo puede existir una compra vigente (no Anulada) por pedido. En el alta y
+  modificación, sus productos y cantidades deben coincidir con el pedido;
+  los precios unitarios siguen siendo editables.
+- No se registran ni modifican ventas con medicamentos vencidos. La vigencia
+  se revalida al cobrar; un medicamento que vence hoy aún se admite.
 - La recepción de una compra solo cambia su estado. El stock se aplica después,
-  desde **Compras recibidas**, y solo una vez por compra.
+  desde **Compras** de Depósito, y solo una vez por compra.
+- Si el pedido de origen ya ajustó el stock, aplicar el stock de la compra es
+  un no-op que informa “Stock ya ajustado desde el pedido”.
 - Los estados de venta, pedido y compra respetan las transiciones definidas en
   `src/domain/rules.ts`.
 
@@ -178,27 +214,38 @@ src/
   mock/            seed y API simulada con persistencia
   routing/         rutas, permisos, guardas y registro de casos de uso
   stores/          Zustand para sucursal y toasts
-  test/            configuración de pruebas
+  test/            setup de pruebas y datos auxiliares
 ```
 
 ## Pruebas
 
 ```bash
 npm test
+npm run build
+npm run lint
 ```
 
-Las pruebas cubren:
+Se recuperaron desde HEAD los tests versionados y se adaptaron a los permisos
+de la API y a la navegación automática al comprobante. Se reconstruyeron las
+pruebas que no habían llegado a un commit. La suite cubre:
 
-- Cálculos de venta, cobertura, recetas, genéricos, stock, pagos y
-  transiciones de estado.
-- Registro interno de los 48 casos de uso, rutas, roles y atributos de las 22
-  entidades.
-- Flujo de inicio de sesión con un usuario demo.
-- Flujo de cobro en efectivo de una venta pendiente.
-- Recepción de compras y aplicación de stock sin doble conteo.
+- Las 22 entidades del modelo, los 48 casos de uso y sus rutas y roles.
+- Inicio de sesión con el rol **Encargado de Ventas** y descarte de sesiones antiguas.
+- Acciones ajenas rechazadas para cada rol, ausencia de sesión y lecturas compartidas.
+- Compra vigente única por pedido y coincidencia de productos/cantidades, también al modificar.
+- Cancelación con compra asociada o stock insuficiente, sin cambios parciales.
+- Turnos pasados, recetas futuras, emisión posterior al vencimiento y fechas inexistentes.
+- Medicamentos vencidos en venta, cobro y búsqueda de genéricos; estado deshabilitado en pantalla.
+- Venta libre de medicamentos sin receta obligatoria.
+- Flujo de venta con receta y cobertura hasta Caja y comprobante, verificando el stock.
+- Flujo pedido → orden → compra → recepción → aplicación de stock, con y sin
+  ajuste previo al enviar el pedido; una segunda aplicación se rechaza.
+- Listados imprimibles, filtros y aplicación de stock desde Depósito.
 
-También se puede ejecutar el chequeo de tipos y el build con
-`npm run build`, y el análisis estático con `npm run lint`.
+Las pruebas usan jsdom, reinician almacenamiento y actor, y fijan la fecha al
+16/11/2026. Solo se congela Date: los temporizadores siguen siendo reales para
+las interacciones. Cada operación se ejecuta con su rol correspondiente; los
+tests de permisos establecen explícitamente un rol ajeno. No requieren backend.
 
 ## Alcance y limitaciones
 

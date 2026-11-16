@@ -1,3 +1,5 @@
+import { exigirRol } from "./comun";
+import { medicamentoVencido } from "../../domain/fechas";
 import { format } from "date-fns";
 import type { CobroCompleto, DetalleCobro } from "../../domain/types";
 import {
@@ -82,6 +84,7 @@ export async function confirmarCobro(
   aleatorio: () => number = Math.random,
 ): Promise<ResultadoCobro> {
   return transaccion((db) => {
+    exigirRol("Encargado de Caja");
     const venta = db.ventas.find((item) => item.id === ventaId);
     if (!venta) throw new ApiError("La venta no existe.");
     const estado = db.estadosVenta.find((item) => item.id === venta.estadoId);
@@ -109,6 +112,10 @@ export async function confirmarCobro(
       );
     });
     for (const [productoId, cantidad] of cantidades.entries()) {
+      const medicamento = db.medicamentos.find((item) => item.id === productoId);
+      if (medicamento && medicamentoVencido(medicamento)) {
+        throw new ApiError(`${medicamento.nombre} está vencido y no puede cobrarse.`, "MEDICAMENTO_VENCIDO");
+      }
       const inventario = buscarInventario(db, productoId, venta.sucursalId);
       if (!inventario || inventario.stockActual < cantidad) {
         const producto =
@@ -243,6 +250,7 @@ export async function modificarCobro(
   pagos: PagoCobroInput[],
 ): Promise<CobroCompleto> {
   return transaccion((db) => {
+    exigirRol("Encargado de Caja");
     const cobro = db.cobros.find((item) => item.id === cobroId);
     if (!cobro) throw new ApiError("El cobro no existe.");
     validarPagos(pagos, cobro.importe);

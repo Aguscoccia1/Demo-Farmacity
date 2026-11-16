@@ -28,7 +28,7 @@ interface AccesoDirecto {
 }
 
 const ACCESOS: Record<Rol, AccesoDirecto[]> = {
-  "Encargado de Venta": [
+  "Encargado de Ventas": [
     {
       titulo: "Nueva venta con receta",
       descripcion: "Cliente, obra social, receta y medicamentos.",
@@ -106,7 +106,7 @@ const ACCESOS: Record<Rol, AccesoDirecto[]> = {
       icono: AlertTriangle,
     },
     {
-      titulo: "Compras recibidas",
+      titulo: "Compras",
       descripcion: "Aplicar stock y consultar compras.",
       ruta: "/compras-recibidas",
       icono: ClipboardCheck,

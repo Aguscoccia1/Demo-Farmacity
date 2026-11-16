@@ -116,7 +116,7 @@ describe("registro interno de los 48 casos de uso", () => {
 
   it("distribuye los casos de uso entre los roles operativos", () => {
     const esperado: Record<Rol, number> = {
-      "Encargado de Venta": 18,
+      "Encargado de Ventas": 18,
       "Encargado de Caja": 6,
       "Encargado de Depósito": 19,
       "Encargado de Compras": 5,

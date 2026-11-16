@@ -1,5 +1,8 @@
+import { exigirRol } from "./comun";
+import { medicamentoVencido } from "../../domain/fechas";
 import type { DetalleVenta, ProductoConTipo, Receta } from "../../domain/types";
 import {
+  admiteVentaLibre,
   calcularSubtotal,
   calcularTotalesVenta,
   esRecetaValida,
@@ -99,14 +102,18 @@ function prepararVenta(
   for (const productoId of agrupados.keys()) {
     const producto = buscarProducto(db, productoId);
     if (!producto) throw new ApiError("Uno de los productos no existe.");
+    if (producto.tipoProducto === "Medicamento" && medicamentoVencido(producto)) {
+      throw new ApiError(`${producto.nombre} está vencido y no puede venderse.`, "MEDICAMENTO_VENCIDO");
+    }
     if (tipoVenta === "Con receta" && producto.tipoProducto !== "Medicamento") {
       throw new ApiError(
         "Una venta con receta solo puede incluir medicamentos.",
       );
     }
-    if (tipoVenta === "Venta libre" && producto.tipoProducto !== "Venta libre") {
+    if (tipoVenta === "Venta libre" && !admiteVentaLibre(producto)) {
       throw new ApiError(
-        "Una venta libre solo puede incluir productos de venta libre.",
+        `${producto.nombre} requiere receta, por lo que no se puede vender en una venta libre.`,
+        "REQUIERE_RECETA",
       );
     }
     const inventario = buscarInventario(db, productoId, datos.sucursalId);
@@ -194,6 +201,7 @@ async function crearVenta(
   datos: DatosVentaConReceta | DatosVentaLibre,
 ) {
   return transaccion((db) => {
+    exigirRol("Encargado de Ventas");
     const preparada = prepararVenta(db, tipoVenta, datos);
     const cliente = buscarCliente(db, preparada.clienteId);
     const receta: Receta | null = preparada.recetaLimpia
@@ -248,6 +256,7 @@ async function actualizarVenta(
   datos: DatosVentaConReceta | DatosVentaLibre,
 ) {
   return transaccion((db) => {
+    exigirRol("Encargado de Ventas");
     const venta = db.ventas.find((item) => item.id === ventaId);
     if (!venta) throw new ApiError("La venta no existe.");
     const estado = db.estadosVenta.find((item) => item.id === venta.estadoId);
@@ -332,6 +341,7 @@ export async function actualizarVentaLibre(
 
 export async function anularVenta(id: string): Promise<void> {
   await transaccion((db) => {
+    exigirRol("Encargado de Ventas");
     const venta = db.ventas.find((item) => item.id === id);
     if (!venta) throw new ApiError("La venta no existe.");
     const estado = db.estadosVenta.find((item) => item.id === venta.estadoId);

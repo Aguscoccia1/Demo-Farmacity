@@ -1,4 +1,5 @@
-import type { DetallePedido } from "../../domain/types";
+import { exigirRol } from "./comun";
+import type { DetallePedido, PedidoCompleto } from "../../domain/types";
 import { puedeModificarPedido, TRANSICIONES_PEDIDO } from "../../domain/rules";
 import {
   ApiError,
@@ -11,6 +12,7 @@ import {
   obtenerDrogueriaCentral,
   ordenarPorFechaDesc,
   tieneOrdenGenerada,
+  tieneStockAjustadoPorPedido,
   validarCantidad,
 } from "./comun";
 import { leerBaseDatos, transaccion } from "./db";
@@ -58,6 +60,7 @@ export async function crearPedido(datos: {
   items: ItemPedidoInput[];
 }) {
   return transaccion((db) => {
+    exigirRol("Encargado de Depósito");
     buscarSucursal(db, datos.sucursalId);
     const central = obtenerDrogueriaCentral(db);
     const estado = db.estadosPedido.find((item) => item.nombre === "Registrado");
@@ -87,6 +90,12 @@ export async function crearPedido(datos: {
       sucursalId: datos.sucursalId,
       referenciaId: pedido.id,
     });
+    auditar(db, {
+      tipoOperacion: "Pedido",
+      descripcion: "Orden de pedido generada.",
+      sucursalId: pedido.sucursalId,
+      referenciaId: pedido.id,
+    });
     return enriquecerPedido(db, pedido.id);
   });
 }
@@ -96,6 +105,7 @@ export async function actualizarPedido(
   datos: { items: ItemPedidoInput[] },
 ) {
   return transaccion((db) => {
+    exigirRol("Encargado de Depósito");
     const pedido = db.pedidos.find((item) => item.id === pedidoId);
     if (!pedido) throw new ApiError("El pedido no existe.");
     const estado = db.estadosPedido.find((item) => item.id === pedido.estadoId);
@@ -126,6 +136,7 @@ export async function actualizarPedido(
 
 export async function eliminarPedido(pedidoId: string): Promise<void> {
   await transaccion((db) => {
+    exigirRol("Encargado de Depósito");
     const pedido = db.pedidos.find((item) => item.id === pedidoId);
     if (!pedido) throw new ApiError("El pedido no existe.");
     const estado = db.estadosPedido.find((item) => item.id === pedido.estadoId);
@@ -148,6 +159,7 @@ export async function eliminarPedido(pedidoId: string): Promise<void> {
 
 export async function generarOrdenPedido(pedidoId: string) {
   return transaccion((db) => {
+    exigirRol("Encargado de Depósito");
     const pedido = db.pedidos.find((item) => item.id === pedidoId);
     if (!pedido) throw new ApiError("El pedido no existe.");
     const estado = db.estadosPedido.find((item) => item.id === pedido.estadoId);
@@ -172,8 +184,9 @@ export async function cambiarEstadoPedido(
     nuevoEstado: "Enviado" | "Cancelado";
     mercaderiaRecibida?: boolean;
   },
-) {
+): Promise<{ pedido: PedidoCompleto; mensaje: string }> {
   return transaccion((db) => {
+    exigirRol("Encargado de Depósito");
     const pedido = db.pedidos.find((item) => item.id === pedidoId);
     if (!pedido) throw new ApiError("El pedido no existe.");
     const estadoActual = db.estadosPedido.find(
@@ -204,6 +217,12 @@ export async function cambiarEstadoPedido(
     }
 
     let productosAjustados = 0;
+    if (datos.nuevoEstado === "Cancelado" && db.compras.some((compra) =>
+      compra.pedidoId === pedido.id &&
+      db.estadosCompra.find((estado) => estado.id === compra.estadoId)?.nombre !== "Anulada",
+    )) {
+      throw new ApiError("El pedido tiene una compra asociada", "COMPRA_ASOCIADA");
+    }
     if (datos.nuevoEstado === "Enviado" && datos.mercaderiaRecibida) {
       const detalles = db.detallesPedido.filter(
         (detalle) => detalle.pedidoId === pedido.id,
@@ -241,6 +260,40 @@ export async function cambiarEstadoPedido(
       }
     }
 
+    let stockRevertido = false;
+    if (
+      datos.nuevoEstado === "Cancelado" &&
+      tieneStockAjustadoPorPedido(db, pedido.id)
+    ) {
+      const detalles = db.detallesPedido.filter(
+        (detalle) => detalle.pedidoId === pedido.id,
+      );
+      // Validar todos los productos antes de revertir cualquiera de ellos.
+      for (const detalle of detalles) {
+        const inventario = buscarInventario(db, detalle.productoId, pedido.sucursalId);
+        if (!inventario || inventario.stockActual < detalle.cantidad) {
+          const producto = buscarProducto(db, detalle.productoId);
+          throw new ApiError(`No se puede cancelar el pedido: el stock actual de ${producto?.nombre ?? "un producto"} es insuficiente para revertir ${detalle.cantidad} unidad(es).`, "STOCK_INSUFICIENTE_PARA_REVERTIR");
+        }
+      }
+      for (const detalle of detalles) {
+        const inventario = buscarInventario(
+          db,
+          detalle.productoId,
+          pedido.sucursalId,
+        );
+        if (!inventario) continue;
+        inventario.stockActual -= detalle.cantidad;
+      }
+      stockRevertido = true;
+      auditar(db, {
+        tipoOperacion: "Actualización de stock",
+        descripcion: `Stock revertido por cancelación del pedido (${detalles.length} producto(s)).`,
+        sucursalId: pedido.sucursalId,
+        referenciaId: pedido.id,
+      });
+    }
+
     pedido.estadoId = estadoNuevo.id;
     auditar(db, {
       tipoOperacion: "Pedido",
@@ -248,6 +301,18 @@ export async function cambiarEstadoPedido(
       sucursalId: pedido.sucursalId,
       referenciaId: pedido.id,
     });
-    return enriquecerPedido(db, pedido.id);
+
+    let mensaje: string;
+    if (datos.nuevoEstado === "Enviado") {
+      mensaje =
+        productosAjustados > 0
+          ? "Pedido enviado y stock actualizado por mercadería recibida."
+          : "Pedido enviado a la droguería.";
+    } else {
+      mensaje = stockRevertido
+        ? "Pedido cancelado. El stock ajustado por la mercadería recibida fue revertido."
+        : "Pedido cancelado.";
+    }
+    return { pedido: enriquecerPedido(db, pedido.id), mensaje };
   });
 }

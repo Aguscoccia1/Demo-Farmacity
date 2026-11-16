@@ -12,7 +12,7 @@ export const USUARIOS_DEMO: UsuarioDemo[] = [
     usuario: "venta",
     contrasena: "venta123",
     nombre: "Lucía Fernández",
-    rol: "Encargado de Venta",
+    rol: "Encargado de Ventas",
   },
   {
     usuario: "caja",

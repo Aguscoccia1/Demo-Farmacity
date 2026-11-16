@@ -135,20 +135,30 @@ export function PaginaDetalleCompra() {
       {estado.nombre === "Registrada" && (
         <Alerta tono="info" className="mb-4">
           Al registrar la recepción, la compra pasa a estado Recibida. El stock
-          se actualiza después desde Compras recibidas, en Depósito.
+          se actualiza después desde Compras de Depósito, en Depósito.
         </Alerta>
       )}
-      {estado.nombre === "Recibida" && !datos.stockAplicado && (
-        <Alerta tono="advertencia" className="mb-4">
-          La recepción está registrada, pero el stock todavía no fue aplicado.
-          Depósito debe actualizarlo desde Compras recibidas.
+      {estado.nombre === "Recibida" && datos.stockAjustadoPorPedido && (
+        <Alerta tono="info" className="mb-4">
+          El stock ya fue actualizado desde la mercadería recibida del pedido
+          de origen. No se vuelve a aplicar al actualizar el stock de la compra.
         </Alerta>
       )}
-      {estado.nombre === "Recibida" && datos.stockAplicado && (
-        <Alerta tono="exito" className="mb-4">
-          La recepción está registrada y el stock de la compra ya fue aplicado.
-        </Alerta>
-      )}
+      {estado.nombre === "Recibida" &&
+        !datos.stockAplicado &&
+        !datos.stockAjustadoPorPedido && (
+          <Alerta tono="advertencia" className="mb-4">
+            La recepción está registrada, pero el stock todavía no fue aplicado.
+            Depósito debe actualizarlo desde Compras de Depósito.
+          </Alerta>
+        )}
+      {estado.nombre === "Recibida" &&
+        datos.stockAplicado &&
+        !datos.stockAjustadoPorPedido && (
+          <Alerta tono="exito" className="mb-4">
+            La recepción está registrada y el stock de la compra ya fue aplicado.
+          </Alerta>
+        )}
       {estado.nombre === "Anulada" && (
         <Alerta tono="advertencia" className="mb-4">
           La compra está anulada y no admite más acciones.
@@ -192,12 +202,19 @@ export function PaginaDetalleCompra() {
               Stock
             </p>
             <div className="mt-1">
-              {datos.stockAplicado ? (
+              {datos.stockAjustadoPorPedido ? (
+                <Badge tono="azul">Ajustado desde el pedido</Badge>
+              ) : datos.stockAplicado ? (
                 <Badge tono="verde">Aplicado</Badge>
               ) : (
                 <Badge tono="gris">Pendiente de aplicar</Badge>
               )}
             </div>
+            {datos.stockAjustadoPorPedido && (
+              <p className="mt-1 text-xs text-ink-500">
+                La mercadería recibida del pedido de origen ya ajustó el stock.
+              </p>
+            )}
           </div>
         </div>
       </Tarjeta>
@@ -278,7 +295,7 @@ export function PaginaDetalleCompra() {
       <ConfirmarDialogo
         abierto={recepcionAbierta}
         titulo="Registrar recepción"
-        descripcion="La compra pasará a estado Recibida. El stock no se modifica en este paso: se aplica desde Compras recibidas."
+        descripcion="La compra pasará a estado Recibida. El stock no se modifica en este paso: se aplica desde Compras de Depósito."
         textoConfirmar="Registrar recepción"
         cargando={recibiendo}
         onConfirmar={registrarRecepcion}

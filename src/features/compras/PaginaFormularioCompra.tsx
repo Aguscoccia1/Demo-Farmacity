@@ -339,8 +339,8 @@ export function PaginaFormularioCompra() {
         {pedidoSeleccionado && !esEdicion && (
           <p className="mt-3 rounded-lg bg-brand-50 px-3 py-2 text-xs text-brand-800">
             Se cargaron {pedidoSeleccionado.detalles.length} producto(s) del
-            pedido. Podés ajustar cantidades y precios antes de registrar la
-            compra.
+            pedido. Los productos y cantidades deben coincidir con el pedido;
+            podés ajustar los precios antes de registrar la compra.
           </p>
         )}
       </Tarjeta>

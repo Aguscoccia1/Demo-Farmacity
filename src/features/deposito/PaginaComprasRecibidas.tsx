@@ -1,5 +1,6 @@
+import { ListadoImprimible } from "../../components/ListadoImprimible";
 import { useCallback, useMemo, useState } from "react";
-import { CheckCircle2, ClipboardCheck, Eye } from "lucide-react";
+import { CheckCircle2, ClipboardList, Eye } from "lucide-react";
 import type { CompraCompleta } from "../../domain/types";
 import { aplicarStockCompra, listarCompras } from "../../mock/api/compras";
 import { formatearFechaHora, formatearMoneda } from "../../lib/format";
@@ -13,13 +14,16 @@ import {
   ConfirmarDialogo,
   EncabezadoPagina,
   Modal,
+  Select,
   Tarjeta,
   Vacio,
 } from "../../components/ui";
+import { tonoEstadoCompra } from "../compras/PaginaCompras";
 import { mostrarToast } from "../../stores/toasts";
 
 export function PaginaComprasRecibidas() {
   const sucursalId = useSucursalActiva();
+  const [estado, setEstado] = useState("todas");
   const [detalle, setDetalle] = useState<CompraCompleta | null>(null);
   const [aplicarAbierto, setAplicarAbierto] = useState(false);
   const [aplicando, setAplicando] = useState(false);
@@ -28,22 +32,30 @@ export function PaginaComprasRecibidas() {
   const cargar = useCallback(() => listarCompras(sucursalId), [sucursalId]);
   const { datos, cargando, error, recargar } = useConsulta(cargar);
 
-  const recibidas = useMemo(
-    () => (datos ?? []).filter((compra) => compra.estado.nombre === "Recibida"),
+  const filtradas = useMemo(() => {
+    if (!datos) return [];
+    if (estado === "todas") return datos;
+    return datos.filter((compra) => compra.estado.nombre === estado);
+  }, [datos, estado]);
+
+  const pendientes = useMemo(
+    () =>
+      (datos ?? []).filter(
+        (compra) =>
+          compra.estado.nombre === "Recibida" && !compra.stockAplicado,
+      ).length,
     [datos],
   );
-
-  const pendientes = recibidas.filter((compra) => !compra.stockAplicado).length;
 
   const aplicar = async () => {
     if (!detalle) return;
     setErrorAccion(null);
     setAplicando(true);
     try {
-      await aplicarStockCompra(detalle.compra.id);
+      const resultado = await aplicarStockCompra(detalle.compra.id);
       setAplicarAbierto(false);
       setDetalle(null);
-      mostrarToast("Stock de la compra aplicado.");
+      mostrarToast(resultado.mensaje);
       recargar();
     } catch (motivo) {
       setErrorAccion(
@@ -60,8 +72,8 @@ export function PaginaComprasRecibidas() {
   return (
     <div>
       <EncabezadoPagina
-        titulo="Compras recibidas"
-        descripcion="Compras con recepción registrada. Aplicá el stock de las compras que todavía no lo tienen actualizado."
+        titulo="Compras de la sucursal"
+        descripcion="Todas las compras de la sucursal activa. Aplicá el stock de las compras recibidas que todavía no lo tienen actualizado."
       />
 
       {errorAccion && (
@@ -76,18 +88,54 @@ export function PaginaComprasRecibidas() {
         </Alerta>
       )}
 
+      <div className="mb-4 flex justify-end">
+        <ListadoImprimible titulo="Compras" deshabilitado={cargando || Boolean(error)}
+          columnas={["Fecha", "Sucursal", "Droguería", "Productos", "Estado", "Total", "Stock"]}
+          filas={filtradas.map((c) => [formatearFechaHora(c.compra.fecha), c.sucursal.nombre, c.drogueria.nombre, c.detalles.map((d) => `${d.producto.nombre}: ${d.cantidad}`).join(", "), c.estado.nombre, formatearMoneda(c.compra.total), c.stockAjustadoPorPedido ? "Stock ya ajustado desde el pedido" : c.stockAplicado ? "Aplicado" : "Pendiente"])} />
+      </div>
+
       <Tarjeta>
+        <div className="flex flex-col gap-3 border-b border-ink-200 p-4 md:flex-row md:items-center md:justify-between">
+          <p className="text-sm text-ink-500">
+            Listado de compras de la sucursal en cualquier estado.
+          </p>
+          <div className="flex items-center gap-2">
+            <label htmlFor="filtro-estado-compra-recibidas" className="text-sm text-ink-500">
+              Estado
+            </label>
+            <Select
+              id="filtro-estado-compra-recibidas"
+              value={estado}
+              onChange={(event) => setEstado(event.target.value)}
+              className="w-44"
+            >
+              <option value="todas">Todas</option>
+              <option value="Registrada">Registradas</option>
+              <option value="Recibida">Recibidas</option>
+              <option value="Anulada">Anuladas</option>
+            </Select>
+          </div>
+        </div>
+
         {cargando ? (
-          <Cargando texto="Cargando compras recibidas…" />
+          <Cargando texto="Cargando compras…" />
         ) : error ? (
           <div className="p-4">
             <Alerta tono="error">{error}</Alerta>
           </div>
-        ) : recibidas.length === 0 ? (
+        ) : filtradas.length === 0 ? (
           <Vacio
-            icono={ClipboardCheck}
-            titulo="No hay compras recibidas"
-            descripcion="Las compras con recepción registrada aparecerán en esta pantalla para aplicar su stock."
+            icono={ClipboardList}
+            titulo={
+              datos && datos.length === 0
+                ? "Todavía no hay compras"
+                : "No hay compras para mostrar"
+            }
+            descripcion={
+              datos && datos.length === 0
+                ? "Las compras que registre Compras para esta sucursal aparecerán en esta pantalla."
+                : "Probá cambiando el estado seleccionado."
+            }
           />
         ) : (
           <div className="overflow-x-auto">
@@ -98,74 +146,91 @@ export function PaginaComprasRecibidas() {
                   <th>Droguería</th>
                   <th>Origen</th>
                   <th>Productos</th>
+                  <th>Estado</th>
                   <th className="text-right">Total</th>
                   <th>Stock</th>
                   <th className="text-right">Acciones</th>
                 </tr>
               </thead>
               <tbody>
-                {recibidas.map((completa) => (
-                  <tr key={completa.compra.id}>
-                    <td className="whitespace-nowrap">
-                      {formatearFechaHora(completa.compra.fecha)}
-                    </td>
-                    <td className="font-medium text-ink-900">
-                      {completa.drogueria.nombre}
-                    </td>
-                    <td>
-                      {completa.pedido ? (
-                        <span className="text-sm text-ink-600">
-                          Pedido del {formatearFechaHora(completa.pedido.fecha)}
+                {filtradas.map((completa) => {
+                  const puedeAplicar =
+                    completa.estado.nombre === "Recibida" &&
+                    !completa.stockAplicado;
+                  return (
+                    <tr key={completa.compra.id}>
+                      <td className="whitespace-nowrap">
+                        {formatearFechaHora(completa.compra.fecha)}
+                      </td>
+                      <td className="font-medium text-ink-900">
+                        {completa.drogueria.nombre}
+                      </td>
+                      <td>
+                        {completa.pedido ? (
+                          <span className="text-sm text-ink-600">
+                            Pedido del {formatearFechaHora(completa.pedido.fecha)}
+                          </span>
+                        ) : (
+                          <span className="text-ink-400">Sin pedido</span>
+                        )}
+                      </td>
+                      <td>
+                        <span className="tabular-nums">{completa.detalles.length}</span>
+                        <span className="block max-w-xs truncate text-xs text-ink-500">
+                          {completa.detalles
+                            .map((detalle) => detalle.producto.nombre)
+                            .join(", ")}
                         </span>
-                      ) : (
-                        <span className="text-ink-400">Sin pedido</span>
-                      )}
-                    </td>
-                    <td>
-                      <span className="tabular-nums">{completa.detalles.length}</span>
-                      <span className="block max-w-xs truncate text-xs text-ink-500">
-                        {completa.detalles
-                          .map((detalle) => detalle.producto.nombre)
-                          .join(", ")}
-                      </span>
-                    </td>
-                    <td className="text-right tabular-nums">
-                      {formatearMoneda(completa.compra.total)}
-                    </td>
-                    <td>
-                      {completa.stockAplicado ? (
-                        <Badge tono="verde">Aplicado</Badge>
-                      ) : (
-                        <Badge tono="amarillo">Pendiente</Badge>
-                      )}
-                    </td>
-                    <td>
-                      <div className="flex flex-wrap justify-end gap-3 whitespace-nowrap text-sm">
-                        <button
-                          type="button"
-                          onClick={() => setDetalle(completa)}
-                          className="inline-flex items-center gap-1 font-medium text-brand-700 hover:underline"
-                        >
-                          <Eye className="h-4 w-4" aria-hidden />
-                          Ver detalle
-                        </button>
-                        {!completa.stockAplicado && (
+                      </td>
+                      <td>
+                        <Badge tono={tonoEstadoCompra(completa.estado.nombre)}>
+                          {completa.estado.nombre}
+                        </Badge>
+                      </td>
+                      <td className="text-right tabular-nums">
+                        {formatearMoneda(completa.compra.total)}
+                      </td>
+                      <td>
+                        {completa.estado.nombre !== "Recibida" ? (
+                          <span className="text-ink-400">—</span>
+                        ) : completa.stockAjustadoPorPedido ? (
+                          <Badge tono="azul">
+                            Stock ya ajustado desde el pedido
+                          </Badge>
+                        ) : completa.stockAplicado ? (
+                          <Badge tono="verde">Aplicado</Badge>
+                        ) : (
+                          <Badge tono="amarillo">Pendiente</Badge>
+                        )}
+                      </td>
+                      <td>
+                        <div className="flex flex-wrap justify-end gap-3 whitespace-nowrap text-sm">
                           <button
                             type="button"
-                            onClick={() => {
-                              setDetalle(completa);
-                              setAplicarAbierto(true);
-                            }}
-                            className="inline-flex items-center gap-1 font-medium text-ink-700 hover:underline"
+                            onClick={() => setDetalle(completa)}
+                            className="inline-flex items-center gap-1 font-medium text-brand-700 hover:underline"
                           >
-                            <CheckCircle2 className="h-4 w-4" aria-hidden />
-                            Aplicar stock
+                            <Eye className="h-4 w-4" aria-hidden />
+                            Ver detalle
                           </button>
-                        )}
-                      </div>
-                    </td>
-                  </tr>
-                ))}
+                          {puedeAplicar && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setDetalle(completa);
+                                setAplicarAbierto(true);
+                              }}
+                              className="inline-flex items-center gap-1 font-medium text-ink-700 hover:underline"
+                            >
+                              <CheckCircle2 className="h-4 w-4" aria-hidden />
+                              Aplicar stock
+                            </button>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
@@ -174,7 +239,7 @@ export function PaginaComprasRecibidas() {
 
       <Modal
         abierto={Boolean(detalle) && !aplicarAbierto}
-        titulo="Detalle de compra recibida"
+        titulo="Detalle de la compra"
         descripcion={
           detalle
             ? `${detalle.drogueria.nombre} · ${formatearFechaHora(detalle.compra.fecha)}`
@@ -183,7 +248,9 @@ export function PaginaComprasRecibidas() {
         onCerrar={() => setDetalle(null)}
         ancho="lg"
         pie={
-          detalle && !detalle.stockAplicado ? (
+          detalle &&
+          detalle.estado.nombre === "Recibida" &&
+          !detalle.stockAplicado ? (
             <>
               <Boton variante="secundario" onClick={() => setDetalle(null)}>
                 Cerrar
@@ -208,7 +275,9 @@ export function PaginaComprasRecibidas() {
                   Estado
                 </p>
                 <div className="mt-1">
-                  <Badge tono="verde">{detalle.estado.nombre}</Badge>
+                  <Badge tono={tonoEstadoCompra(detalle.estado.nombre)}>
+                    {detalle.estado.nombre}
+                  </Badge>
                 </div>
               </div>
               <div>
@@ -216,7 +285,11 @@ export function PaginaComprasRecibidas() {
                   Stock
                 </p>
                 <div className="mt-1">
-                  {detalle.stockAplicado ? (
+                  {detalle.estado.nombre !== "Recibida" ? (
+                    <span className="text-ink-400">—</span>
+                  ) : detalle.stockAjustadoPorPedido ? (
+                    <Badge tono="azul">Stock ya ajustado desde el pedido</Badge>
+                  ) : detalle.stockAplicado ? (
                     <Badge tono="verde">Aplicado</Badge>
                   ) : (
                     <Badge tono="amarillo">Pendiente de aplicar</Badge>

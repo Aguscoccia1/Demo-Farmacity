@@ -6,6 +6,7 @@ import App from "../../App";
 import { useAuthStore } from "../../auth/store";
 import { useSucursalStore } from "../../stores/sucursal";
 import { useToastStore } from "../../stores/toasts";
+import { obtenerActor } from "../../lib/sessionActor";
 
 beforeEach(() => {
   localStorage.clear();
@@ -34,7 +35,17 @@ describe("inicio de sesión", () => {
     expect(screen.getByText("Accesos directos")).toBeInTheDocument();
     expect(useAuthStore.getState().usuario).toMatchObject({
       usuario: "venta",
-      rol: "Encargado de Venta",
+      rol: "Encargado de Ventas",
     });
+  });
+
+  it("descarta una sesión persistida de la versión previa al renombrado del rol", async () => {
+    localStorage.setItem("farmacity-sesion:v1", JSON.stringify({
+      version: 0,
+      state: { usuario: { usuario: "venta", nombre: "Lucía", rol: "rol-anterior" } },
+    }));
+    await useAuthStore.persist.rehydrate();
+    expect(useAuthStore.getState().usuario).toBeNull();
+    expect(obtenerActor().rol).toBe("Sistema");
   });
 });

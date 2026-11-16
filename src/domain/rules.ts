@@ -1,4 +1,4 @@
-import { format } from "date-fns";
+import { esFechaCalendario, fechaDeHoy, medicamentoVencido } from "./fechas";
 import type {
   DetalleCobro,
   Medicamento,
@@ -70,12 +70,31 @@ export function calcularTotalesVenta(
   };
 }
 
-export function esRecetaValida(receta: Pick<Receta, "fechaVencimiento" | "medico" | "matriculaMedico">, hoy = new Date()): boolean {
-  const hoyIso = format(hoy, "yyyy-MM-dd");
+export function esRecetaValida(receta: Pick<Receta, "fecha" | "fechaVencimiento" | "medico" | "matriculaMedico">, hoy = new Date()): boolean {
+  const hoyIso = fechaDeHoy(hoy);
   return (
+    esFechaCalendario(receta.fecha) &&
+    esFechaCalendario(receta.fechaVencimiento) &&
+    receta.fecha <= hoyIso &&
+    receta.fecha <= receta.fechaVencimiento &&
     receta.fechaVencimiento >= hoyIso &&
     receta.medico.trim().length > 0 &&
     receta.matriculaMedico.trim().length > 0
+  );
+}
+
+/**
+ * Un producto se puede vender en una venta libre cuando es un producto de
+ * venta libre o cuando es un medicamento que no requiere receta.
+ */
+export function admiteVentaLibre(
+  producto:
+    | (Pick<Medicamento, "requiereReceta"> & { tipoProducto: "Medicamento" })
+    | { tipoProducto: "Venta libre" },
+): boolean {
+  return (
+    producto.tipoProducto === "Venta libre" ||
+    (producto.tipoProducto === "Medicamento" && !producto.requiereReceta)
   );
 }
 
@@ -89,6 +108,7 @@ export function buscarGenericoEquivalente(
     medicamentos.find(
       (candidato) =>
         candidato.id !== medicamento.id &&
+        !medicamentoVencido(candidato) &&
         candidato.principioActivo.toLowerCase() ===
           medicamento.principioActivo.toLowerCase() &&
         (stockPorProducto.get(candidato.id) ?? 0) >= cantidadRequerida,

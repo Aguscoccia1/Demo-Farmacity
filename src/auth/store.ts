@@ -47,11 +47,14 @@ export const useAuthStore = create<EstadoSesion>()(
     }),
     {
       name: "farmacity-sesion:v1",
+      version: 1,
+      // Las sesiones anteriores al cambio de nombre del rol deben volver a ingresar.
+      migrate: () => ({ usuario: null }),
       partialize: (estado) => ({ usuario: estado.usuario }),
       onRehydrateStorage: () => (estado) => {
         if (estado?.usuario) {
           establecerActor(estado.usuario.nombre, estado.usuario.rol);
-        }
+        } else limpiarActor();
       },
     },
   ),

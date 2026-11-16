@@ -1,3 +1,4 @@
+import { ListadoImprimible } from "../../components/ListadoImprimible";
 import { useCallback, useMemo } from "react";
 import { Link } from "react-router-dom";
 import { Banknote, ClipboardList } from "lucide-react";
@@ -84,6 +85,13 @@ export function PaginaCobrosDelDia() {
             </ul>
           )}
         </Tarjeta>
+      </div>
+
+      <div className="mb-4 flex justify-end">
+        <ListadoImprimible titulo="Cobros del día" deshabilitado={cargando || Boolean(error)}
+          columnas={["Fecha", "Sucursal", "Cliente", "Medios de pago", "Importe"]}
+          filas={(datos ?? []).map((c) => [formatearFechaHora(c.cobro.fecha), c.venta.sucursal.nombre, `${c.venta.cliente.apellido}, ${c.venta.cliente.nombre}`, c.detalles.map((d) => `${d.medioPago.tipo}: ${formatearMoneda(d.importe)}`).join(", "), formatearMoneda(c.cobro.importe)])}
+          resumen={`Total cobrado: ${formatearMoneda(total)}`} />
       </div>
 
       <Tarjeta>

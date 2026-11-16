@@ -1,3 +1,4 @@
+import { exigirRol } from "./comun";
 import type { Inventario, ProductoConTipo } from "../../domain/types";
 import {
   ApiError,
@@ -70,6 +71,7 @@ export async function crearInventario(
   datos: DatosInventario,
 ): Promise<InventarioConProducto> {
   return transaccion((db) => {
+    exigirRol("Encargado de Depósito");
     buscarProducto(db, datos.productoId);
     buscarSucursal(db, datos.sucursalId);
     validarDatosInventario(datos);
@@ -107,6 +109,7 @@ export async function actualizarInventario(
   datos: Pick<DatosInventario, "stockActual" | "stockMinimo" | "stockMaximo">,
 ): Promise<InventarioConProducto> {
   return transaccion((db) => {
+    exigirRol("Encargado de Depósito");
     const inventario = db.inventarios.find((item) => item.id === id);
     if (!inventario) throw new ApiError("El registro de inventario no existe.");
     validarDatosInventario({ ...datos, productoId: inventario.productoId, sucursalId: inventario.sucursalId });
@@ -141,6 +144,7 @@ export async function registrarMovimientoStock(datos: {
   cantidad: number;
 }): Promise<ResultadoMovimientoStock> {
   return transaccion((db) => {
+    exigirRol("Encargado de Depósito");
     if (!Number.isInteger(datos.cantidad) || datos.cantidad <= 0) {
       throw new ApiError("La cantidad debe ser un número entero mayor que cero.");
     }

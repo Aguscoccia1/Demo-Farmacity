@@ -188,7 +188,7 @@ export function PaginaFormularioPedido() {
       } else {
         const nuevo = await crearPedido({ sucursalId, items: preparados });
         mostrarToast("Pedido registrado.");
-        navigate(`/pedidos/${nuevo.pedido.id}`);
+        navigate(`/pedidos/${nuevo.pedido.id}/orden`);
       }
     } catch (motivo) {
       setErrorGeneral(
@@ -363,7 +363,7 @@ export function PaginaFormularioPedido() {
 
         <div className="flex flex-wrap items-center justify-between gap-2 border-t border-ink-200 px-4 py-3">
           <p className="text-xs text-ink-500">
-            El pedido queda Registrado. Después podés generar la orden de pedido
+            El pedido queda Registrado con su orden generada. Podés ver la orden
             y enviarlo a la droguería.
           </p>
           <div className="flex gap-2">

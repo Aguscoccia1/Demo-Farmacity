@@ -91,17 +91,13 @@ export function PaginaDetallePedido() {
     setErrorAccion(null);
     setEnviando(true);
     try {
-      await cambiarEstadoPedido(pedido.id, {
+      const resultado = await cambiarEstadoPedido(pedido.id, {
         nuevoEstado: "Enviado",
         mercaderiaRecibida,
       });
       setEnviarAbierto(false);
       setMercaderiaRecibida(false);
-      mostrarToast(
-        mercaderiaRecibida
-          ? "Pedido enviado y stock actualizado por mercadería recibida."
-          : "Pedido enviado a la droguería.",
-      );
+      mostrarToast(resultado.mensaje);
       recargar();
     } catch (motivo) {
       setErrorAccion(
@@ -117,9 +113,11 @@ export function PaginaDetallePedido() {
     setErrorAccion(null);
     setCancelando(true);
     try {
-      await cambiarEstadoPedido(pedido.id, { nuevoEstado: "Cancelado" });
+      const resultado = await cambiarEstadoPedido(pedido.id, {
+        nuevoEstado: "Cancelado",
+      });
       setCancelarAbierto(false);
-      mostrarToast("Pedido cancelado.");
+      mostrarToast(resultado.mensaje);
       recargar();
     } catch (motivo) {
       setErrorAccion(

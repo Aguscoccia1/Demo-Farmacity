@@ -57,6 +57,7 @@ import {
   Tarjeta,
 } from "../../components/ui";
 import { mostrarToast } from "../../stores/toasts";
+import { medicamentoVencido } from "../../domain/fechas";
 
 interface ItemSeleccionado {
   productoId: string;
@@ -311,6 +312,7 @@ export function PaginaVentaConReceta() {
   };
 
   const agregarProducto = (producto: ProductoConStock) => {
+    if (producto.tipoProducto === "Medicamento" && medicamentoVencido(producto)) return;
     setErrores({});
     setItems((anteriores) => {
       const existente = anteriores.find(
@@ -346,6 +348,7 @@ export function PaginaVentaConReceta() {
         const producto = medicamentos.find(
           (candidato) => candidato.id === productoId,
         );
+        if (delta > 0 && producto && medicamentoVencido(producto)) return [item];
         const limite = producto?.stockActual ?? 0;
         const nueva = Math.min(limite, item.cantidad + delta);
         if (nueva <= 0) return [];
@@ -379,7 +382,7 @@ export function PaginaVentaConReceta() {
 
   const disponibleParaAgregar = (producto: ProductoConStock): boolean => {
     const existente = items.find((item) => item.productoId === producto.id);
-    return producto.stockActual > (existente?.cantidad ?? 0);
+    return !(producto.tipoProducto === "Medicamento" && medicamentoVencido(producto)) && producto.stockActual > (existente?.cantidad ?? 0);
   };
 
   const guardarVenta = async () => {
@@ -791,6 +794,7 @@ export function PaginaVentaConReceta() {
                         <div className="min-w-0">
                           <div className="flex flex-wrap items-center gap-2">
                             <p className="font-medium text-ink-900">{producto.nombre}</p>
+                            {medicamentoVencido(producto) && <Badge tono="rojo">Vencido</Badge>}
                             {producto.requiereReceta && (
                               <Badge tono="azul">Requiere receta</Badge>
                             )}
@@ -801,6 +805,9 @@ export function PaginaVentaConReceta() {
                           </p>
                           <p className="mt-0.5 text-xs text-ink-500">
                             Principio activo: {producto.principioActivo}
+                          </p>
+                          <p className="mt-0.5 text-xs text-ink-500">
+                            Laboratorio: {producto.laboratorio} · Vencimiento: {formatearFecha(producto.fechaVencimiento)}
                           </p>
                           <p className="mt-1 text-sm font-medium text-ink-800">
                             {formatearMoneda(producto.precio)}
@@ -894,7 +901,7 @@ export function PaginaVentaConReceta() {
                             <button
                               type="button"
                               onClick={() => cambiarCantidad(item.productoId, 1)}
-                              disabled={item.cantidad >= item.producto.stockActual}
+                              disabled={item.cantidad >= item.producto.stockActual || medicamentoVencido(item.producto)}
                               className="rounded border border-ink-200 p-1 text-ink-600 hover:bg-ink-50 disabled:cursor-not-allowed disabled:opacity-40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500"
                               aria-label={`Agregar una unidad de ${item.producto.nombre}`}
                             >

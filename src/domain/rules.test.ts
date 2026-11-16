@@ -107,7 +107,8 @@ describe("cálculos de venta", () => {
 
 describe("receta", () => {
   const hoy = new Date(2026, 4, 15, 12, 0, 0);
-  const receta: Pick<Receta, "fechaVencimiento" | "medico" | "matriculaMedico"> = {
+  const receta: Pick<Receta, "fecha" | "fechaVencimiento" | "medico" | "matriculaMedico"> = {
+    fecha: "2026-05-10",
     fechaVencimiento: "2026-05-15",
     medico: "Dra. Laura Bianchi",
     matriculaMedico: "MP-12000",

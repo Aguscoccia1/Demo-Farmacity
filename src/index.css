@@ -47,6 +47,21 @@
 }
 
 @media print {
+  body.imprimir-listado #root {
+    display: none !important;
+  }
+
+  body.imprimir-listado {
+    overflow: visible !important;
+  }
+
+  .reporte-para-imprimir {
+    display: block !important;
+  }
+
+  .reporte-para-imprimir tr {
+    break-inside: avoid;
+  }
   .no-imprimir {
     display: none !important;
   }
@@ -70,4 +85,8 @@
     max-width: none !important;
     padding: 0 !important;
   }
+}
+
+.reporte-para-imprimir {
+  display: none;
 }

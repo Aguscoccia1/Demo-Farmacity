@@ -68,13 +68,21 @@ relevamiento y mantener la demo acotada a los circuitos pedidos.
   anulación se ofrece dentro de la pantalla de edición para no agregar una
   pantalla extra.
 - Una venta Cobrada no se puede modificar ni anular.
-- Una venta con receta solo admite medicamentos. Una venta libre solo admite
-  productos de venta libre.
-- La receta debe estar vigente a la fecha de la operación, con médico y
-  matrícula informados.
+- Una venta con receta solo admite medicamentos. Una venta libre admite
+  productos de venta libre y también medicamentos que no requieren receta.
+  Si se intenta agregar un medicamento que requiere receta a una venta libre,
+  la operación se rechaza con un mensaje claro y el código de error
+  `REQUIERE_RECETA`.
+- La receta debe tener fechas reales de calendario, estar vigente a la fecha
+  de la operación, con médico y matrícula. Su emisión no puede ser futura ni
+  posterior a su vencimiento. La misma regla se revalida en Caja.
+- Un medicamento con vencimiento anterior a hoy no se agrega, registra ni
+  modifica en una venta. Caja revalida su vigencia antes de cobrar. Se muestra
+  deshabilitado con “Vencido”; su laboratorio y vencimiento aparecen en la
+  selección y en la consulta de stock. El día de vencimiento se admite.
 - La búsqueda de genéricos compara el principio activo sin distinguir
   mayúsculas y minúsculas, excluye el medicamento original y exige stock
-  suficiente para la cantidad pedida.
+  suficiente para la cantidad pedida. Los candidatos vencidos se excluyen.
 - Al cobrar se generan los mensajes de “Receta sellada” y “Medicamento
   entregado” para ventas con receta, o “Productos entregados” para ventas
   libres. También se informa si algún producto quedó por debajo del mínimo.
@@ -84,15 +92,21 @@ relevamiento y mantener la demo acotada a los circuitos pedidos.
 - Un pedido se crea en estado Registrado y siempre se dirige a la Droguería
   Central.
 - Solo se puede modificar o eliminar un pedido Registrado.
-- La orden de pedido debe generarse explícitamente. La generación se registra
-  en auditoría y habilita el envío.
+- El alta genera la orden en la misma transacción, registra su generación en
+  auditoría y navega automáticamente a la vista imprimible. Se mantiene la
+  generación explícita para pedidos antiguos sin orden; habilita el envío.
 - No se puede enviar un pedido sin orden generada.
 - El envío se realiza desde el detalle del pedido y permite marcar
   “mercadería recibida”. Si se marca, el stock se incrementa en la misma
   transición de Registrado a Enviado.
 - Si no se marca, el pedido solo cambia de estado y el stock no se modifica.
-- Un pedido Enviado puede cancelarse. Un pedido Cancelado no puede volver a
-  otro estado.
+- No se cancela un pedido que tenga una compra vinculada no Anulada. El error
+  es “El pedido tiene una compra asociada”.
+- Si se cancela un pedido Enviado con stock ajustado, primero se comprueba que
+  todos los productos tengan cantidades suficientes para revertirlo. Ante
+  cualquier faltante se rechaza sin cambiar stock, estado ni auditoría; no se
+  recorta la reversión a cero. Si alcanza, se resta y registra la reversión.
+- Un pedido Cancelado no puede volver a otro estado.
 - La generación de la orden navega directamente a la vista imprimible.
 
 ## 6. Compras
@@ -102,18 +116,31 @@ relevamiento y mantener la demo acotada a los circuitos pedidos.
   de droguerías, no como proveedores alternativos de compras.
 - Una compra puede originarse en un pedido Enviado de la misma sucursal. En ese
   caso se precargan las cantidades del pedido.
+- Solo se admite una compra no Anulada por pedido. La coincidencia exacta de
+  productos y cantidades se valida en el alta y en la modificación, agrupando
+  líneas repetidas por producto. Los precios pueden corregirse. Anular la
+  compra permite crear otra para el mismo pedido.
 - El precio unitario de compra se inicializa con el precio de venta del
   producto y es editable. El total se recalcula con los subtotales.
 - Una compra se crea en estado Registrada. Solo en ese estado se puede
   modificar o anular.
 - Registrar la recepción cambia el estado a Recibida, pero no modifica el
   stock.
-- La aplicación de stock se hace desde **Compras recibidas**, solo para compras
+- La aplicación de stock se hace desde **Compras** de Depósito, solo para compras
   Recibidas y solo una vez. La marca de “stock aplicado” se guarda como un
   registro de auditoría asociado a la compra.
+- Si el pedido de origen ya ajustó el stock al enviarse con “mercadería
+  recibida”, la aplicación de stock de la compra es un no-op: no se suman las
+  cantidades nuevamente, la compra queda marcada como aplicada y el usuario
+  recibe “Stock ya ajustado desde el pedido”. Así se evita el doble conteo
+  entre el ajuste del pedido y la actualización de stock de la compra.
 - Antes de aplicar stock se valida que todos los productos tengan inventario en
   la sucursal; si falta alguno, no se aplica ningún cambio.
-- Este diseño evita el doble conteo entre recepción y actualización de stock.
+- La pantalla **Compras** de Depósito lista todas las compras de la
+  sucursal en cualquier estado, con un filtro por estado (Registrada, Recibida,
+  Anulada) y una columna de stock que distingue “Pendiente”, “Aplicado” y
+  “Stock ya ajustado desde el pedido”. La acción de aplicar stock solo se
+  ofrece en las compras Recibidas con stock pendiente.
 
 ## 7. Sucursales y alcance de los filtros
 
@@ -132,12 +159,14 @@ relevamiento y mantener la demo acotada a los circuitos pedidos.
 - Las fechas se persisten en formato ISO y se muestran en `dd/mm/yyyy` (o
   `dd/mm/yyyy HH:mm` cuando incluye hora).
 - Los campos de fecha usan controles nativos del navegador.
+- Turnos no admite fechas anteriores a hoy. La validación se aplica tanto en
+  el formulario como en la operación mock, con fecha local de la aplicación.
 - Los importes se muestran en pesos argentinos con formato `es-AR`.
 - La interfaz está en español de Argentina.
 - No se muestran códigos de caso de uso ni terminología de análisis en la
   pantalla. El registro de los 48 casos de uso es interno.
-- Los códigos de caso de uso viven en `src/routing/useCases.ts` y se usan solo
-  para la prueba de cobertura interna.
+- Los códigos de caso de uso viven en `src/routing/useCases.ts` como registro
+  interno de trazabilidad con el análisis.
 
 ## 9. Seguridad de la demo
 
@@ -145,22 +174,40 @@ relevamiento y mantener la demo acotada a los circuitos pedidos.
   prueba. Es una demo, no un sistema de autenticación real.
 - El bloqueo por intentos fallidos se guarda en `localStorage`.
 - La sesión se persiste en `localStorage` y se restaura al recargar.
+- El nombre único del rol es **Encargado de Ventas**, incluido seed, actores,
+  rutas, menú y auditoría. La persistencia de sesión pasa a versión 1: las
+  sesiones del formato anterior se descartan para exigir un nuevo ingreso,
+  evitando conservar un rol incompatible con los permisos actuales.
 - El cierre por inactividad se controla en el layout principal y registra el
   evento en auditoría.
 - Los permisos de menú y de rutas se derivan del rol de la sesión. Las rutas no
   declaradas se consideran inexistentes.
+- Las mutaciones de negocio comprueban `obtenerActor()` mediante `exigirRol`
+  antes de alterar datos. Venta gestiona clientes/turnos/obras sociales/ventas;
+  Caja gestiona cobros; Depósito gestiona inventario/movimientos/pedidos/
+  droguerías/aplicación de stock; Compras gestiona compras/recepción/anulación.
+  Administrador tiene lectura de auditoría. Sin sesión o con otro rol se
+  lanza `ApiError` con “No tenés permiso para realizar esta acción”.
+- La persistencia y auditoría internas son infraestructura, no acciones de un
+  usuario: deben permitir inicialización del seed y eventos de login/bloqueo/
+  cierre, incluso sin sesión. Las lecturas operativas compartidas no se
+  restringen. Estos controles siguen siendo una simulación local.
 
 ## 10. Pruebas y latencia simulada
 
-- La API mock agrega una latencia aleatoria de 150 a 700 ms para que los estados
-  de carga sean visibles.
-- En modo test (`import.meta.env.MODE === "test"`) la latencia se omite para
-  que las pruebas sean rápidas y deterministas.
-- El entorno de pruebas reemplaza el `localStorage` global de Node por el
-  almacenamiento de jsdom, porque Node expone una implementación experimental
-  que no está disponible sin archivo de respaldo.
-- Las pruebas reinician el almacenamiento y los stores de Zustand entre casos
-  para evitar que el estado persista de una prueba a otra.
+- La API mock agrega una latencia aleatoria de 150 a 700 ms para mostrar los estados de carga.
+- En modo test se omite la latencia. Vitest y React Testing Library usan jsdom
+  y el setup compartido de `src/test/setup.ts`. Se ejecuta con `npm test`.
+- Los cinco archivos de tests versionados y el setup se recuperaron de HEAD;
+  el resto de la suite borrada se reconstruyó y amplió con las reglas actuales.
+- Las pruebas fijan Date al 16/11/2026 y dejan temporizadores reales para
+  userEvent. Limpian localStorage y actor entre casos y restauran mocks y reloj.
+- Las llamadas que modifican datos establecen el actor correcto; los flujos
+  cambian explícitamente de Ventas a Caja y de Depósito a Compras y de vuelta.
+- Se comprueban permisos por rol, integridad pedido–compra, cancelación sin
+  efectos parciales, turnos pasados, recetas inconsistentes y vencimientos.
+  Los flujos completos verifican stock y ausencia de doble conteo; las pantallas
+  prueban emisión de comprobante/orden, impresión y filtros.
 
 ## 11. Interfaz y alcance
 
@@ -172,6 +219,11 @@ relevamiento y mantener la demo acotada a los circuitos pedidos.
   globales no.
 - Las vistas imprimibles ocultan la barra lateral, el encabezado y los botones
   de acción al imprimir.
+- Ventas con receta, ventas libres, cobros del día, pedidos y compras ofrecen
+  “Imprimir”: vista previa y documento con los mismos filtros y sin acciones.
+  Se usa el diálogo de impresión del navegador, sin exportaciones adicionales.
+- Al cobrar se navega al comprobante en la misma pestaña; no se abren ventanas
+  emergentes ni se imprime automáticamente.
 
 ## 12. Decisiones de implementación que pueden revisarse
 
@@ -182,7 +234,12 @@ relevamiento y mantener la demo acotada a los circuitos pedidos.
   (actualización de inventario).
 - Se eligió que el envío de un pedido pueda ajustar stock en el mismo paso si
   se marca “mercadería recibida”, tal como se desprende del circuito de pedidos
-  relevado.
+  relevado. Como consecuencia, la aplicación de stock de una compra con pedido
+  de origen en ese caso es un no-op. La cancelación solo revierte el ajuste si
+  no hay compra vigente y hay stock suficiente.
+- Se eligió detectar el “stock ya ajustado” con registros de auditoría en vez
+  de agregar un campo persistido a la compra, para no modificar el modelo de
+  datos relevado.
 - Se eligió mostrar la Droguería Central como proveedor fijo de compras aunque
   el seed incluya otras droguerías, porque el circuito de compras no pedía
   selección de proveedor.

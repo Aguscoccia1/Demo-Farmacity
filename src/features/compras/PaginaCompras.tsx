@@ -1,3 +1,4 @@
+import { ListadoImprimible } from "../../components/ListadoImprimible";
 import { useCallback, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { Eye, Pencil, Plus, ShoppingCart } from "lucide-react";
@@ -62,6 +63,12 @@ export function PaginaCompras() {
           </Link>
         }
       />
+
+      <div className="mb-4 flex justify-end">
+        <ListadoImprimible titulo="Compras" deshabilitado={cargando || Boolean(error)}
+          columnas={["Fecha", "Sucursal", "Droguería", "Productos", "Estado", "Total"]}
+          filas={filtrados.map((c) => [formatearFechaHora(c.compra.fecha), c.sucursal.nombre, c.drogueria.nombre, c.detalles.map((d) => `${d.producto.nombre}: ${d.cantidad}`).join(", "), c.estado.nombre, formatearMoneda(c.compra.total)])} />
+      </div>
 
       <Tarjeta>
         <div className="flex flex-col gap-3 border-b border-ink-200 p-4 md:flex-row md:items-center md:justify-between">

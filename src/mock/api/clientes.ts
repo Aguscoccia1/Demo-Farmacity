@@ -1,3 +1,4 @@
+import { exigirRol } from "./comun";
 import type { Cliente, Turno, VentaCompleta } from "../../domain/types";
 import {
   clienteSchema,
@@ -59,6 +60,7 @@ export async function obtenerFichaCliente(id: string): Promise<FichaCliente> {
 }
 
 export async function crearCliente(datos: ClienteForm): Promise<Cliente> {
+  exigirRol("Encargado de Ventas");
   let limpios: ClienteForm;
   try {
     limpios = validarConEsquema(clienteSchema, datos);
@@ -66,6 +68,7 @@ export async function crearCliente(datos: ClienteForm): Promise<Cliente> {
     throw new ApiError(error instanceof Error ? error.message : "Datos inválidos.");
   }
   return transaccion((db) => {
+    exigirRol("Encargado de Ventas");
     if (db.clientes.some((cliente) => cliente.dni === limpios.dni)) {
       throw new ApiError("Ya existe un cliente con ese DNI.", "DNI_DUPLICADO");
     }
@@ -87,6 +90,7 @@ export async function actualizarCliente(
   id: string,
   datos: ClienteForm,
 ): Promise<Cliente> {
+  exigirRol("Encargado de Ventas");
   let limpios: ClienteForm;
   try {
     limpios = validarConEsquema(clienteSchema, datos);
@@ -94,6 +98,7 @@ export async function actualizarCliente(
     throw new ApiError(error instanceof Error ? error.message : "Datos inválidos.");
   }
   return transaccion((db) => {
+    exigirRol("Encargado de Ventas");
     const cliente = buscarCliente(db, id);
     if (
       db.clientes.some(
@@ -121,6 +126,7 @@ export async function listarTurnos(): Promise<TurnoConCliente[]> {
 }
 
 export async function crearTurno(datos: TurnoForm): Promise<Turno> {
+  exigirRol("Encargado de Ventas");
   let limpios: TurnoForm;
   try {
     limpios = validarConEsquema(turnoSchema, datos);
@@ -128,6 +134,7 @@ export async function crearTurno(datos: TurnoForm): Promise<Turno> {
     throw new ApiError(error instanceof Error ? error.message : "Datos inválidos.");
   }
   return transaccion((db) => {
+    exigirRol("Encargado de Ventas");
     buscarCliente(db, limpios.clienteId);
     const duplicado = db.turnos.some(
       (turno) =>
