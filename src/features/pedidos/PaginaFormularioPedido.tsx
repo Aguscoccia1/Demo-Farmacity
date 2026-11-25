@@ -188,7 +188,7 @@ export function PaginaFormularioPedido() {
       } else {
         const nuevo = await crearPedido({ sucursalId, items: preparados });
         mostrarToast("Pedido registrado.");
-        navigate(`/pedidos/${nuevo.pedido.id}/orden`);
+        navigate(`/pedidos/${nuevo.pedido.id}`);
       }
     } catch (motivo) {
       setErrorGeneral(
@@ -261,7 +261,7 @@ export function PaginaFormularioPedido() {
           <div>
             <p className="font-medium text-ink-900">Droguería Central</p>
             <p className="text-xs text-ink-500">
-              Los pedidos se envían a la droguería configurada para la farmacia.
+              Compras gestionará la adquisición a esta droguería a partir del pedido.
             </p>
           </div>
         </div>
@@ -364,7 +364,7 @@ export function PaginaFormularioPedido() {
         <div className="flex flex-wrap items-center justify-between gap-2 border-t border-ink-200 px-4 py-3">
           <p className="text-xs text-ink-500">
             El pedido queda Registrado con su orden generada. Podés ver la orden
-            y enviarlo a la droguería.
+            y enviarlo a Compras.
           </p>
           <div className="flex gap-2">
             <Boton

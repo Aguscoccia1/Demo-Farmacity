@@ -145,8 +145,10 @@ export function PaginaFormularioCompra() {
   }
 
   const productos = datos.catalogo;
-  const pedidoSeleccionado = datos.pedidos.find(
-    (pedido) => pedido.pedido.id === pedidoId,
+  const detallesDelPedido = Boolean(pedidoId || datos.compra?.pedido);
+  const productosDelPedido = new Set(
+    datos.pedidos.find(p => p.pedido.id === (pedidoId || datos.compra?.pedido?.id))
+      ?.detalles.map(d => d.productoId) ?? [],
   );
 
   const cambiarItem = (clave: number, cambios: Partial<ItemCompraForm>) => {
@@ -285,7 +287,9 @@ export function PaginaFormularioCompra() {
         titulo={esEdicion ? "Modificar compra" : "Nueva compra"}
         descripcion={
           esEdicion
-            ? "Actualizá los productos, cantidades y precios mientras la compra esté Registrada."
+            ? detallesDelPedido
+              ? "Ajustá cantidades y precios o agregá productos. Se conservan los productos del pedido de origen."
+              : "Actualizá los productos, cantidades y precios mientras la compra esté Registrada."
             : "Registrá la compra a la Droguería Central, con o sin pedido de origen."
         }
       />
@@ -336,11 +340,10 @@ export function PaginaFormularioCompra() {
             )}
           </div>
         </div>
-        {pedidoSeleccionado && !esEdicion && (
+        {detallesDelPedido && (
           <p className="mt-3 rounded-lg bg-brand-50 px-3 py-2 text-xs text-brand-800">
-            Se cargaron {pedidoSeleccionado.detalles.length} producto(s) del
-            pedido. Los productos y cantidades deben coincidir con el pedido;
-            podés ajustar los precios antes de registrar la compra.
+            Los productos del pedido de Depósito no se pueden cambiar ni quitar.
+            Podés modificar cantidades y precios unitarios, y agregar otros productos.
           </p>
         )}
       </Tarjeta>
@@ -384,6 +387,7 @@ export function PaginaFormularioCompra() {
                       <Select
                         id={`compra-producto-${item.clave}`}
                         value={item.productoId}
+                        disabled={productosDelPedido.has(item.productoId)}
                         onChange={(event) =>
                           seleccionarProducto(item.clave, event.target.value)
                         }
@@ -457,7 +461,7 @@ export function PaginaFormularioCompra() {
                       variante="fantasma"
                       tamano="sm"
                       onClick={() => quitarItem(item.clave)}
-                      disabled={items.length <= 1}
+                      disabled={productosDelPedido.has(item.productoId) || items.length <= 1}
                       aria-label={`Quitar producto ${indice + 1}`}
                       className="justify-self-start sm:justify-self-end"
                     >

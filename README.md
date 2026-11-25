@@ -112,10 +112,11 @@ comerciales. Las lecturas compartidas entre roles siguen disponibles.
 - Alertas de stock por debajo del mínimo.
 - Salidas e ingresos manuales de mercadería.
 - Pedidos a la Droguería Central.
-- Generación de la orden incluida en el alta y apertura automática de su vista imprimible.
+- Generación de la orden incluida en el alta y apertura del detalle para enviar el
+  pedido a Compras. La impresión queda disponible desde “Ver orden de pedido”.
 - Envío y cancelación de pedidos.
-- Ajuste de stock al marcar mercadería recibida.
-- Reversión del ajuste al cancelar un pedido enviado con mercadería recibida.
+- Envío de pedidos sin modificar stock; Compras registra la compra y recepción.
+- Protección de stock para pedidos antiguos que ya registraron un ingreso.
 - Listado de todas las compras de la sucursal con filtro por estado.
 - Aplicación de stock de las compras recibidas, sin doble conteo cuando el
   pedido de origen ya lo ajustó.
@@ -157,17 +158,24 @@ de la aplicación. Compras se puede imprimir tanto desde Compras como Depósito.
 - Los pedidos solo se modifican o eliminan en estado Registrado.
 - Los pedidos nuevos generan su orden en la misma transacción del alta. Para
   pedidos anteriores que no tengan orden se mantiene su generación explícita.
-- El ajuste de stock por mercadería recibida ocurre al pasar un pedido de
-  Registrado a Enviado con la opción correspondiente marcada.
+- Enviar un pedido solo lo pasa de Registrado a Enviado, sin modificar stock.
+  “Enviar a Compras” representa el pase interno para gestionar la adquisición
+  a la Droguería Central; no agrega aprobación ni un envío externo automático.
+  En Compras, una nueva compra permite elegir ese pedido de la misma sucursal.
+  Compras registra la recepción y Depósito aplica el stock de la compra recibida.
 - No se cancela un pedido con una compra vinculada no Anulada: se informa
   “El pedido tiene una compra asociada”.
-- Cancelar un pedido Enviado con stock ajustado revierte el ajuste solo si
+- Por compatibilidad, cancelar un pedido antiguo Enviado con stock ajustado revierte el ajuste solo si
   todos los productos tienen existencias suficientes. Si no, se rechaza toda
   la operación y se conserva el stock, estado y auditoría anteriores.
 - Las compras se registran siempre contra la Droguería Central.
 - Solo puede existir una compra vigente (no Anulada) por pedido. En el alta y
-  modificación, sus productos y cantidades deben coincidir con el pedido;
-  los precios unitarios siguen siendo editables.
+  modificación se conservan los productos del pedido, pero se pueden ajustar
+  cantidades y precios unitarios y agregar otros productos.
+- Los productos del pedido no se cambian ni quitan. Los adicionales pueden
+  seleccionarse y quitarse. El stock se aplica según los detalles de la compra.
+- Por compatibilidad, los pedidos antiguos que ya ingresaron stock requieren
+  coincidencia exacta de productos y cantidades para evitar diferencias ocultas.
 - No se registran ni modifican ventas con medicamentos vencidos. La vigencia
   se revalida al cobrar; un medicamento que vence hoy aún se admite.
 - La recepción de una compra solo cambia su estado. El stock se aplica después,
@@ -232,7 +240,7 @@ pruebas que no habían llegado a un commit. La suite cubre:
 - Las 22 entidades del modelo, los 48 casos de uso y sus rutas y roles.
 - Inicio de sesión con el rol **Encargado de Ventas** y descarte de sesiones antiguas.
 - Acciones ajenas rechazadas para cada rol, ausencia de sesión y lecturas compartidas.
-- Compra vigente única por pedido y coincidencia de productos/cantidades, también al modificar.
+- Compra vigente única por pedido, conservación de sus productos y edición de cantidades/precios con adicionales.
 - Cancelación con compra asociada o stock insuficiente, sin cambios parciales.
 - Turnos pasados, recetas futuras, emisión posterior al vencimiento y fechas inexistentes.
 - Medicamentos vencidos en venta, cobro y búsqueda de genéricos; estado deshabilitado en pantalla.

@@ -93,16 +93,24 @@ relevamiento y mantener la demo acotada a los circuitos pedidos.
   Central.
 - Solo se puede modificar o eliminar un pedido Registrado.
 - El alta genera la orden en la misma transacción, registra su generación en
-  auditoría y navega automáticamente a la vista imprimible. Se mantiene la
+  auditoría y abre el detalle para enviar el pedido a Compras. La orden
+  se puede consultar e imprimir desde “Ver orden de pedido”. Se mantiene la
   generación explícita para pedidos antiguos sin orden; habilita el envío.
 - No se puede enviar un pedido sin orden generada.
-- El envío se realiza desde el detalle del pedido y permite marcar
-  “mercadería recibida”. Si se marca, el stock se incrementa en la misma
-  transición de Registrado a Enviado.
-- Si no se marca, el pedido solo cambia de estado y el stock no se modifica.
+- Como decisión de la demo, “Enviar a Compras” representa el pase interno desde
+  Depósito para que Compras registre la adquisición a la Droguería Central.
+  Confluence asigna responsabilidades, pero no detalla este enlace ni una
+  aprobación. Se conserva el estado Enviado y no se agrega una aprobación ni
+  un envío externo automático; el proveedor de destino sigue siendo la Central.
+- El envío desde el detalle solo cambia el estado a Enviado, sin ingresar
+  mercadería. Se quitó la casilla de recepción para separar responsabilidades:
+  Compras registra una compra vinculada y su recepción; Depósito aplica el stock.
+- No se crea automáticamente una compra al enviar. El pedido aparece como origen
+  seleccionable en una nueva compra de la misma sucursal.
 - No se cancela un pedido que tenga una compra vinculada no Anulada. El error
   es “El pedido tiene una compra asociada”.
-- Si se cancela un pedido Enviado con stock ajustado, primero se comprueba que
+- Para datos de versiones anteriores, si se cancela un pedido Enviado con stock
+  ajustado, primero se comprueba que
   todos los productos tengan cantidades suficientes para revertirlo. Ante
   cualquier faltante se rechaza sin cambiar stock, estado ni auditoría; no se
   recorta la reversión a cero. Si alcanza, se resta y registra la reversión.
@@ -111,15 +119,22 @@ relevamiento y mantener la demo acotada a los circuitos pedidos.
 
 ## 6. Compras
 
+- Si hay un pedido de origen, sus productos quedan bloqueados y no se quitan,
+  pero las cantidades y precios son editables. Compras puede agregar productos
+  adicionales y modificar o quitar esos adicionales, tanto en el alta como en
+  la edición. Las compras sin pedido permiten cargar los detalles libremente.
+
 - Las compras se registran siempre contra la Droguería Central. Las demás
   droguerías del seed existen para el circuito de alta, modificación y consulta
   de droguerías, no como proveedores alternativos de compras.
 - Una compra puede originarse en un pedido Enviado de la misma sucursal. En ese
   caso se precargan las cantidades del pedido.
-- Solo se admite una compra no Anulada por pedido. La coincidencia exacta de
-  productos y cantidades se valida en el alta y en la modificación, agrupando
-  líneas repetidas por producto. Los precios pueden corregirse. Anular la
-  compra permite crear otra para el mismo pedido.
+- Solo se admite una compra no Anulada por pedido. La API exige conservar sus
+  productos, admite cantidades distintas y adicionales y agrupa líneas repetidas.
+  El pedido conserva la solicitud original y el stock ingresa según la compra.
+  Para pedidos de versiones anteriores que ya ajustaron stock se conserva la
+  coincidencia exacta de productos/cantidades para evitar diferencias ocultas.
+  Anular la compra permite crear otra para el mismo pedido.
 - El precio unitario de compra se inicializa con el precio de venta del
   producto y es editable. El total se recalcula con los subtotales.
 - Una compra se crea en estado Registrada. Solo en ese estado se puede
@@ -232,11 +247,10 @@ relevamiento y mantener la demo acotada a los circuitos pedidos.
 - Se eligió que la recepción de compras no aplique stock automáticamente, para
   separar la responsabilidad de Compras (recepción) de la de Depósito
   (actualización de inventario).
-- Se eligió que el envío de un pedido pueda ajustar stock en el mismo paso si
-  se marca “mercadería recibida”, tal como se desprende del circuito de pedidos
-  relevado. Como consecuencia, la aplicación de stock de una compra con pedido
-  de origen en ese caso es un no-op. La cancelación solo revierte el ajuste si
-  no hay compra vigente y hay stock suficiente.
+- Se concentra el ingreso de stock en la aplicación de compras recibidas por
+  Depósito. Enviar un pedido no actualiza existencias, incluso si un cliente
+  antiguo manda el parámetro de recepción retirado. Se conservan las defensas
+  contra doble conteo y reversión insuficiente para datos de versiones anteriores.
 - Se eligió detectar el “stock ya ajustado” con registros de auditoría en vez
   de agregar un campo persistido a la compra, para no modificar el modelo de
   datos relevado.

@@ -2,7 +2,6 @@ import { useCallback, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import {
   ArrowLeft,
-  CheckCircle2,
   FileText,
   Pencil,
   Send,
@@ -32,7 +31,6 @@ export function PaginaDetallePedido() {
   const { id } = useParams();
   const navigate = useNavigate();
   const [enviarAbierto, setEnviarAbierto] = useState(false);
-  const [mercaderiaRecibida, setMercaderiaRecibida] = useState(false);
   const [enviando, setEnviando] = useState(false);
   const [cancelarAbierto, setCancelarAbierto] = useState(false);
   const [cancelando, setCancelando] = useState(false);
@@ -93,10 +91,8 @@ export function PaginaDetallePedido() {
     try {
       const resultado = await cambiarEstadoPedido(pedido.id, {
         nuevoEstado: "Enviado",
-        mercaderiaRecibida,
       });
       setEnviarAbierto(false);
-      setMercaderiaRecibida(false);
       mostrarToast(resultado.mensaje);
       recargar();
     } catch (motivo) {
@@ -179,13 +175,13 @@ export function PaginaDetallePedido() {
 
       {estado.nombre === "Registrado" && !ordenGenerada && (
         <Alerta tono="advertencia" className="mb-4">
-          Generá la orden de pedido antes de enviar el pedido a la droguería.
+          Generá la orden de pedido antes de enviar el pedido a Compras.
         </Alerta>
       )}
       {estado.nombre === "Enviado" && (
         <Alerta tono="info" className="mb-4">
-          El pedido fue enviado a la droguería. Si se registró la mercadería
-          recibida, el stock ya fue actualizado.
+          El pedido quedó disponible para que Compras registre la compra asociada.
+          El stock se actualizará desde Depósito después de registrar la recepción.
         </Alerta>
       )}
       {estado.nombre === "Cancelado" && (
@@ -294,7 +290,7 @@ export function PaginaDetallePedido() {
                 }
               >
                 <Send className="h-4 w-4" aria-hidden />
-                Enviar pedido
+                Enviar a Compras
               </Boton>
             )}
             {puedeCancelar && (
@@ -315,35 +311,13 @@ export function PaginaDetallePedido() {
 
       <ConfirmarDialogo
         abierto={enviarAbierto}
-        titulo="Enviar pedido"
-        descripcion="El pedido pasará a estado Enviado y ya no podrá modificarse."
-        textoConfirmar="Enviar pedido"
+        titulo="Enviar a Compras"
+        descripcion="El pedido quedará disponible para que Compras registre la adquisición a la Droguería Central. Pasará a estado Enviado y ya no podrá modificarse. Esta acción no modifica el stock."
+        textoConfirmar="Enviar a Compras"
         cargando={enviando}
         onConfirmar={enviar}
-        onCerrar={() => {
-          setEnviarAbierto(false);
-          setMercaderiaRecibida(false);
-        }}
-      >
-        <label className="flex cursor-pointer items-start gap-3 rounded-lg border border-ink-200 p-3 text-sm">
-          <input
-            type="checkbox"
-            checked={mercaderiaRecibida}
-            onChange={(event) => setMercaderiaRecibida(event.target.checked)}
-            className="mt-1"
-          />
-          <span>
-            <span className="flex items-center gap-1.5 font-medium text-ink-900">
-              <CheckCircle2 className="h-4 w-4 text-brand-700" aria-hidden />
-              Mercadería recibida
-            </span>
-            <span className="mt-0.5 block text-xs text-ink-500">
-              Si la mercadería ya llegó, marcá esta opción para ajustar el stock
-              del pedido al enviarlo.
-            </span>
-          </span>
-        </label>
-      </ConfirmarDialogo>
+        onCerrar={() => setEnviarAbierto(false)}
+      />
 
       <ConfirmarDialogo
         abierto={cancelarAbierto}

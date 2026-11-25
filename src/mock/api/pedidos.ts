@@ -182,7 +182,6 @@ export async function cambiarEstadoPedido(
   pedidoId: string,
   datos: {
     nuevoEstado: "Enviado" | "Cancelado";
-    mercaderiaRecibida?: boolean;
   },
 ): Promise<{ pedido: PedidoCompleto; mensaje: string }> {
   return transaccion((db) => {
@@ -216,50 +215,13 @@ export async function cambiarEstadoPedido(
       );
     }
 
-    let productosAjustados = 0;
     if (datos.nuevoEstado === "Cancelado" && db.compras.some((compra) =>
       compra.pedidoId === pedido.id &&
       db.estadosCompra.find((estado) => estado.id === compra.estadoId)?.nombre !== "Anulada",
     )) {
       throw new ApiError("El pedido tiene una compra asociada", "COMPRA_ASOCIADA");
     }
-    if (datos.nuevoEstado === "Enviado" && datos.mercaderiaRecibida) {
-      const detalles = db.detallesPedido.filter(
-        (detalle) => detalle.pedidoId === pedido.id,
-      );
-      for (const detalle of detalles) {
-        const inventario = buscarInventario(
-          db,
-          detalle.productoId,
-          pedido.sucursalId,
-        );
-        if (!inventario) {
-          const producto = buscarProducto(db, detalle.productoId);
-          throw new ApiError(
-            `No hay inventario de ${producto?.nombre ?? "un producto"} en la sucursal para ajustar el stock.`,
-          );
-        }
-      }
-      for (const detalle of detalles) {
-        const inventario = buscarInventario(
-          db,
-          detalle.productoId,
-          pedido.sucursalId,
-        );
-        if (!inventario) continue;
-        inventario.stockActual += detalle.cantidad;
-        productosAjustados += 1;
-      }
-      if (productosAjustados > 0) {
-        auditar(db, {
-          tipoOperacion: "Actualización de stock",
-          descripcion: `Stock ajustado por mercadería recibida del pedido (${productosAjustados} producto(s)).`,
-          sucursalId: pedido.sucursalId,
-          referenciaId: pedido.id,
-        });
-      }
-    }
-
+    // Compatibilidad con pedidos antiguos que ingresaron stock al enviarse.
     let stockRevertido = false;
     if (
       datos.nuevoEstado === "Cancelado" &&
@@ -297,17 +259,16 @@ export async function cambiarEstadoPedido(
     pedido.estadoId = estadoNuevo.id;
     auditar(db, {
       tipoOperacion: "Pedido",
-      descripcion: `Pedido ${datos.nuevoEstado.toLowerCase()}${productosAjustados > 0 ? " con mercadería recibida" : ""}.`,
+      descripcion: datos.nuevoEstado === "Enviado"
+        ? "Pedido enviado a Compras."
+        : "Pedido cancelado.",
       sucursalId: pedido.sucursalId,
       referenciaId: pedido.id,
     });
 
     let mensaje: string;
     if (datos.nuevoEstado === "Enviado") {
-      mensaje =
-        productosAjustados > 0
-          ? "Pedido enviado y stock actualizado por mercadería recibida."
-          : "Pedido enviado a la droguería.";
+      mensaje = "Pedido enviado a Compras. El stock no se modificó.";
     } else {
       mensaje = stockRevertido
         ? "Pedido cancelado. El stock ajustado por la mercadería recibida fue revertido."

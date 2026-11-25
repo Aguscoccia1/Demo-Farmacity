@@ -33,13 +33,11 @@ describe("integridad de la compra vinculada", () => {
 
   it.each([
     [{ ...itemsCompra[0], productoId: "medicamento-03" }],
-    [{ ...itemsCompra[0], cantidad: 9 }],
-    [...itemsCompra, { ...itemsCompra[0], productoId: "medicamento-03" }],
-  ])("rechaza productos o cantidades distintos: %j", async (...items) => {
+  ])("rechaza reemplazar los productos del pedido: %j", async (...items) => {
     const pedidoId = await pedidoEnviado();
     como("Encargado de Compras");
     const antes = leerBaseDatosSync();
-    await expect(crearCompra({ sucursalId, pedidoId, items })).rejects.toMatchObject({ codigo: "DETALLES_NO_COINCIDEN" });
+    await expect(crearCompra({ sucursalId, pedidoId, items })).rejects.toMatchObject({ codigo: "PRODUCTOS_PEDIDO_REQUERIDOS" });
     expect(leerBaseDatosSync()).toEqual(antes);
   });
 
@@ -53,17 +51,46 @@ describe("integridad de la compra vinculada", () => {
     expect(nueva.compra.id).not.toBe(primera.compra.id);
   });
 
-  it("al modificar admite precios distintos pero exige los productos y cantidades del pedido", async () => {
+  it("admite cantidades distintas y productos adicionales; aplica las cantidades compradas una sola vez", async () => {
+    const pedidoId = await pedidoEnviado();
+    const antes = stockDe("medicamento-01", sucursalId);
+    const antesAdicional = stockDe("medicamento-03", sucursalId);
+    como("Encargado de Compras");
+    const compra = await crearCompra({ sucursalId, pedidoId, items: [
+      { ...itemsCompra[0], cantidad: 12 },
+      { productoId: "medicamento-03", cantidad: 3, precioUnitario: 200 },
+    ] });
+    await registrarRecepcionCompra(compra.compra.id);
+    como("Encargado de Depósito");
+    await aplicarStockCompra(compra.compra.id);
+    expect(stockDe("medicamento-01", sucursalId)).toBe(antes + 12);
+    expect(stockDe("medicamento-03", sucursalId)).toBe(antesAdicional + 3);
+    await expect(aplicarStockCompra(compra.compra.id)).rejects.toMatchObject({ codigo: "STOCK_YA_APLICADO" });
+  });
+
+  it("al modificar admite cantidades, precios y adicionales pero conserva los productos del pedido", async () => {
     const pedidoId = await pedidoEnviado();
     como("Encargado de Compras");
     const compra = await crearCompra({ sucursalId, pedidoId, items: itemsCompra });
-    const modificada = await actualizarCompra(compra.compra.id, { items: [{ ...itemsCompra[0], precioUnitario: 200 }] });
+    const modificada = await actualizarCompra(compra.compra.id, { items: [
+      { ...itemsCompra[0], cantidad: 9, precioUnitario: 200 },
+      { productoId: "medicamento-03", cantidad: 2, precioUnitario: 100 },
+    ] });
     expect(modificada.compra.total).toBe(2000);
-    for (const cambio of [{ cantidad: 9 }, { productoId: "medicamento-03" }]) {
+    for (const cambio of [{ productoId: "medicamento-03" }]) {
       const antes = leerBaseDatosSync();
-      await expect(actualizarCompra(compra.compra.id, { items: [{ ...itemsCompra[0], ...cambio }] })).rejects.toMatchObject({ codigo: "DETALLES_NO_COINCIDEN" });
+      await expect(actualizarCompra(compra.compra.id, { items: [{ ...itemsCompra[0], ...cambio }] })).rejects.toMatchObject({ codigo: "PRODUCTOS_PEDIDO_REQUERIDOS" });
       expect(leerBaseDatosSync()).toEqual(antes);
     }
+  });
+
+  it("protege los pedidos antiguos que ya ingresaron stock ante cantidades distintas", async () => {
+    const pedidoId = await pedidoEnviado(true);
+    como("Encargado de Compras");
+    const antes = leerBaseDatosSync();
+    await expect(crearCompra({ sucursalId, pedidoId, items: [{ ...itemsCompra[0], cantidad: 12 }] }))
+      .rejects.toMatchObject({ codigo: "DETALLES_NO_COINCIDEN" });
+    expect(leerBaseDatosSync()).toEqual(antes);
   });
 });
 

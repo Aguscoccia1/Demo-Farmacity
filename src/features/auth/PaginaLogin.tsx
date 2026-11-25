@@ -105,7 +105,7 @@ export function PaginaLogin() {
             Operación de mostrador y depósito
           </p>
           <h1 className="text-4xl font-semibold leading-tight tracking-tight">
-            Todo el trabajo de la farmacia, en un solo lugar.
+            Farmacity
           </h1>
           <p className="mt-4 text-sm leading-6 text-brand-100/80">
             Ventas con receta, cobros, stock, pedidos y compras con información

@@ -92,7 +92,13 @@ function validarPedidoOrigen(
   db.detallesPedido.filter((d) => d.pedidoId === pedidoId).forEach((d) => {
     cantidades.set(d.productoId, (cantidades.get(d.productoId) ?? 0) + d.cantidad);
   });
-  if (items.length !== cantidades.size || items.some((item) => cantidades.get(item.productoId) !== item.cantidad)) {
+  if ([...cantidades.keys()].some(productoId => !items.some(item => item.productoId === productoId))) {
+    throw new ApiError("La compra debe conservar los productos del pedido de origen.", "PRODUCTOS_PEDIDO_REQUERIDOS");
+  }
+  // Los pedidos nuevos no ingresan stock. Los antiguos que ya lo ingresaron
+  // requieren coincidencia exacta para que el no-op no oculte diferencias.
+  if (tieneStockAjustadoPorPedido(db, pedidoId) &&
+      (items.length !== cantidades.size || items.some((item) => cantidades.get(item.productoId) !== item.cantidad))) {
     throw new ApiError("Los productos y cantidades de la compra deben coincidir con los del pedido.", "DETALLES_NO_COINCIDEN");
   }
 }
